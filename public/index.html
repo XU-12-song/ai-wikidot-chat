@@ -85,6 +85,11 @@ input,select,textarea{outline:none;font-family:inherit;font-size:13px;transition
 .streaming-cursor{display:inline-block;width:6px;height:14px;background:var(--accent);margin-left:2px;animation:blink .6s infinite;vertical-align:text-bottom}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
 
+/* ── Tool calls chips ── */
+.tool-calls{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 8px}
+.tool-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;background:rgba(126,184,255,0.08);border:1px solid rgba(126,184,255,0.25);border-radius:12px;font-size:11px;color:#7eb8ff}
+.tool-chip .tc-icon{display:flex;align-items:center}.tool-chip .tc-icon svg{width:12px;height:12px;stroke:#7eb8ff}
+
 /* ── Reasoning collapse ── */
 .reasoning-wrap{border-left:3px solid var(--accent);margin:4px 0 8px;border-radius:0 8px 8px 0;overflow:hidden}
 .reasoning-toggle{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--bg2);color:var(--accent);font-size:11px;cursor:pointer;user-select:none;border:none;width:100%;text-align:left;font-family:inherit;transition:background .15s}
@@ -148,7 +153,12 @@ input,select,textarea{outline:none;font-family:inherit;font-size:13px;transition
 .bubble-body a{color:var(--accent);text-decoration:underline}
 .bubble-body blockquote{border-left:3px solid var(--accent);padding-left:12px;margin:6px 0;opacity:.85}
 .bubble-body hr{border:none;border-top:1px solid var(--border);margin:10px 0}
+.bubble-body table{border-collapse:collapse;width:100%;margin:8px 0;font-size:13px}
+.bubble-body th,.bubble-body td{border:1px solid var(--border);padding:6px 10px;text-align:left}
+.bubble-body th{background:var(--bg2);font-weight:600}
+.bubble-body tr:nth-child(even){background:var(--bg1)}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
 
@@ -304,11 +314,24 @@ function renderMsgs(){
       reasoningHtml = `<div class="reasoning-wrap"><button class="reasoning-toggle" onclick="event.stopPropagation();this.classList.toggle('open');document.getElementById('${rId}').classList.toggle('open')"><span class="arrow">&#9654;</span> Thinking...</button><div class="reasoning-body" id="${rId}">${esc(m.reasoning_content)}</div></div>`;
     }
 
+    // Tool calls chips for assistant messages
+    let toolChipsHtml = '';
+    if (m.role==='assistant' && m.tool_calls) {
+      let tcNames = [];
+      try { tcNames = JSON.parse(m.tool_calls); } catch {}
+      if (tcNames.length > 0) {
+        toolChipsHtml = '<div class="tool-calls">' + tcNames.map(n =>
+          '<span class="tool-chip"><span class="tc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span class="tc-name">'+esc(n)+'</span></span>'
+        ).join('') + '</div>';
+      }
+    }
+
     if (m.role==='system') return `<div class="msg-wrap system"><div class="msg-bubble"><div class="role-tag">System</div><div class="bubble-body">${body}</div></div>${branchNav}</div>`;
 
     return `<div class="msg-wrap ${m.role}" id="r-${m.id}">
       <div class="msg-bubble${e?' editing':''}">
         <div class="role-tag">${m.role==='user'?'You':'Assistant'}</div>
+        ${toolChipsHtml}
         ${reasoningHtml}
         <button class="edit-trigger" onclick="startEdit(${m.id})">&#9998; Edit</button>
         <div class="bubble-body">${body}</div>
@@ -369,7 +392,7 @@ async function send(){
   const p = document.createElement('div');
   p.className = 'msg-wrap assistant';
   p.id = aiId;
-  p.innerHTML = '<div class="msg-bubble"><div class="role-tag">Assistant</div><div id="ai-reasoning-wrap" class="reasoning-wrap" style="display:none"><button class="reasoning-toggle" onclick="event.stopPropagation();this.classList.toggle(\'open\');this.nextElementSibling.classList.toggle(\'open\')"><span class="arrow">&#9654;</span> Thinking...</button><div class="reasoning-body" id="ai-reasoning"></div></div><div class="bubble-body" id="ai-body">thinking<span class="streaming-cursor"></span></div></div>';
+  p.innerHTML = '<div class="msg-bubble"><div class="role-tag">Assistant</div><div id="ai-tool-calls" class="tool-calls" style="display:none"></div><div id="ai-reasoning-wrap" class="reasoning-wrap" style="display:none"><button class="reasoning-toggle" onclick="event.stopPropagation();this.classList.toggle(\'open\');this.nextElementSibling.classList.toggle(\'open\')"><span class="arrow">&#9654;</span> Thinking...</button><div class="reasoning-body" id="ai-reasoning"></div></div><div class="bubble-body" id="ai-body"><span class="streaming-cursor"></span></div></div>';
   $('#msgContainer').appendChild(p);
 
   try{
@@ -382,7 +405,6 @@ async function send(){
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = '', aiContent = '', aiReasoning = '', hasReasoning = false;
-    S.streamAbort = () => reader.cancel();
 
     while(true){
       const {done, value} = await reader.read();
@@ -394,9 +416,19 @@ async function send(){
         try{
           const d = JSON.parse(line.slice(6));
           if(d.error) throw new Error(d.error);
-          if(d.reasoning){
+          if(d.tool_call){
+            const tc = document.getElementById('ai-tool-calls');
+            if(tc){
+              tc.style.display = 'flex';
+              const chip = document.createElement('span');
+              chip.className = 'tool-chip';
+              chip.innerHTML = '<span class="tc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span class="tc-name">'+esc(d.tool_call.name)+'</span>';
+              tc.appendChild(chip);
+            }
+          }
+          if(d.reasoning_delta){
             hasReasoning = true;
-            aiReasoning += d.reasoning;
+            aiReasoning += d.reasoning_delta;
             const rw = document.getElementById('ai-reasoning-wrap');
             const rb = document.getElementById('ai-reasoning');
             if(rw) rw.style.display = 'block';
@@ -425,10 +457,8 @@ async function send(){
     S.convs = await api('/conversations'); renderConvs();
     await loadBranches(); updateMeta();
   }catch(e){
-    if(e.name!=='AbortError'){
-      alert('Error: '+e.message);
-      await reloadMsgs(); renderMsgs();
-    }
+    alert('Error: '+e.message);
+    await reloadMsgs(); renderMsgs();
   }finally{
     S.streaming = false; S.streamAbort = null;
     $('#sendBtn').disabled = false;
@@ -458,12 +488,81 @@ async function applySettings(){
 
 async function regenerate(){
   if(!S.cid||S.streaming) return;
-  S.streaming=true; $('#regenBtn').disabled=true;
+  S.streaming=true; S.editing=null; cancelStream();
+  $('#regenBtn').disabled=true;
+
+  // Add AI bubble placeholder
+  const aiId = 'ai-stream';
+  const p = document.createElement('div');
+  p.className = 'msg-wrap assistant';
+  p.id = aiId;
+  p.innerHTML = '<div class="msg-bubble"><div class="role-tag">Assistant</div><div id="ai-tool-calls" class="tool-calls" style="display:none"></div><div id="ai-reasoning-wrap" class="reasoning-wrap" style="display:none"><button class="reasoning-toggle" onclick="event.stopPropagation();this.classList.toggle(\'open\');this.nextElementSibling.classList.toggle(\'open\')"><span class="arrow">&#9654;</span> Thinking...</button><div class="reasoning-body" id="ai-reasoning"></div></div><div class="bubble-body" id="ai-body"><span class="streaming-cursor"></span></div></div>';
+  $('#msgContainer').appendChild(p);
+
   try{
-    await api(`/conversations/${S.cid}/regenerate`, {method:'POST'});
-    await reloadMsgs(); renderMsgs(); updateMeta();
-  }catch(e){ alert(e.message); }
-  finally{ S.streaming=false; $('#regenBtn').disabled=false; }
+    const res = await fetch(`/api/conversations/${S.cid}/regenerate`, {method:'POST'});
+    if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '', aiContent = '', aiReasoning = '', hasReasoning = false;
+
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buf += decoder.decode(value, {stream:true});
+      const lines = buf.split('\n'); buf = lines.pop()||'';
+      for(const line of lines){
+        if(!line.startsWith('data: ')) continue;
+        try{
+          const d = JSON.parse(line.slice(6));
+          if(d.error) throw new Error(d.error);
+          if(d.tool_call){
+            const tc = document.getElementById('ai-tool-calls');
+            if(tc){
+              tc.style.display = 'flex';
+              const chip = document.createElement('span');
+              chip.className = 'tool-chip';
+              chip.innerHTML = '<span class="tc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span class="tc-name">'+esc(d.tool_call.name)+'</span>';
+              tc.appendChild(chip);
+            }
+          }
+          if(d.reasoning_delta){
+            hasReasoning = true;
+            aiReasoning += d.reasoning_delta;
+            const rw = document.getElementById('ai-reasoning-wrap');
+            const rb = document.getElementById('ai-reasoning');
+            if(rw) rw.style.display = 'block';
+            if(rb) rb.textContent = aiReasoning;
+          }
+          if(d.delta){
+            aiContent += d.delta;
+            const body = document.getElementById('ai-body');
+            if(body) body.innerHTML = md(aiContent)+'<span class="streaming-cursor"></span>';
+          }
+          if(d.done){
+            const body = document.getElementById('ai-body');
+            if(body) body.innerHTML = md(aiContent);
+            if(!hasReasoning){
+              const rw = document.getElementById('ai-reasoning-wrap');
+              if(rw) rw.style.display = 'none';
+            }
+          }
+        }catch(e){ throw e; }
+      }
+      $('#msgContainer').scrollTop = $('#msgContainer').scrollHeight;
+    }
+
+    await reloadMsgs(); renderMsgs();
+    S.convs = await api('/conversations'); renderConvs();
+    await loadBranches(); updateMeta();
+  }catch(e){
+    alert('Error: '+e.message);
+    await reloadMsgs(); renderMsgs();
+  }finally{
+    S.streaming = false;
+    $('#regenBtn').disabled = false;
+  }
 }
 
 // ── Helpers ──
@@ -490,10 +589,19 @@ function toast(text){
   setTimeout(()=>d.remove(), 3100);
 }
 
-// ── Simple Markdown Parser ───────────────────────────────────────────────
+// ── Markdown Parser ─────────────────────────────────────────────────────
 function md(text){
   if(!text) return '';
+  // CDN loaded → use marked
+  if(typeof marked !== 'undefined' && marked.parse) {
+    marked.setOptions({ breaks: true, gfm: true });
+    return marked.parse(text);
+  }
+  // Fallback: self-implemented parser
+  return fallbackMd(text);
+}
 
+function fallbackMd(text){
   // Protect code blocks
   const blocks = [];
   let t = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
@@ -506,6 +614,28 @@ function md(text){
   t = t.replace(/`([^`]+)`/g, (_, code) => {
     inlines.push('<code>'+esc(code)+'</code>');
     return '\x00I'+ (inlines.length-1) +'\x00';
+  });
+
+  // Protect tables (extract, convert, placeholder)
+  const tables = [];
+  t = t.replace(/^\|.+\|[\s\S]*?\n\n/gm, (table) => {
+    const rows = table.trim().split('\n').filter(r => r.includes('|'));
+    if(rows.length < 2) return table;
+    const html = ['<table>'];
+    rows.forEach((row, ri) => {
+      const cells = row.split('|').filter(c => c.trim() !== '');
+      const tag = ri === 0 ? 'th' : 'td';
+      const isSep = cells.every(c => /^[\s:-]+$/.test(c));
+      html.push('<tr>');
+      if(ri === 1 && isSep) return;
+      cells.forEach(c => {
+        html.push('<'+tag+'>'+c.trim()+'</'+tag+'>');
+      });
+      html.push('</tr>');
+    });
+    html.push('</table>');
+    tables.push(html.join(''));
+    return '\x00T'+(tables.length-1)+'\x00';
   });
 
   // Escape HTML in the rest
@@ -552,6 +682,9 @@ function md(text){
 
   // Single newline = line break
   t = t.replace(/\n/g, '<br>');
+
+  // Restore tables
+  t = t.replace(/\x00T(\d+)\x00/g, (_, i) => tables[+i]);
 
   // Restore inline codes
   t = t.replace(/\x00I(\d+)\x00/g, (_, i) => inlines[+i]);

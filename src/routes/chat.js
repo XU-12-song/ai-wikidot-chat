@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { createOpenAIClient, THINKING_ENABLED } from '../config.js';
 import { getConversation, getBranchMessages, buildApiMessages, callDeepSeek } from '../helpers.js';
+import { SCP_SYSTEM_PROMPT, runToolLoop } from '../tools/index.js';
 
 const router = Router();
 
@@ -25,7 +25,9 @@ router.post('/:id/chat', async (req, res) => {
     }
 
     const apiMessages = buildApiMessages(conv, branchId);
-    const openai = createOpenAIClient();
+    if (apiMessages.length > 0 && apiMessages[0].role === 'system') {
+      apiMessages[0].content += SCP_SYSTEM_PROMPT;
+    }
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -33,44 +35,41 @@ router.post('/:id/chat', async (req, res) => {
       'Connection': 'keep-alive',
       'X-Accel-Buffering': 'no',
     });
+    res.flushHeaders();
+    if (res.socket) res.socket.setNoDelay(true);
 
     let fullContent = '';
     let fullReasoning = '';
-    let assistantMsgId = null;
+    let toolsCalled = [];
 
-    const stream = await openai.chat.completions.create({
-      model: conv.model, messages: apiMessages,
-      temperature: conv.temperature, max_tokens: conv.max_tokens, top_p: conv.top_p,
-      reasoning_effort: conv.reasoning_effort || 'high',
-      extra_body: { thinking: THINKING_ENABLED },
-      stream: true,
-    });
-
-    for await (const chunk of stream) {
-      const delta = chunk.choices?.[0]?.delta?.content || '';
-      const reasoningDelta = chunk.choices?.[0]?.delta?.reasoning_content || '';
-      if (reasoningDelta) {
-        fullReasoning += reasoningDelta;
-        res.write(`data: ${JSON.stringify({ reasoning: reasoningDelta, reasoning_content: fullReasoning })}\n\n`);
-      }
-      if (delta) {
-        fullContent += delta;
-        if (!assistantMsgId) {
-          const info = db.prepare('INSERT INTO messages (conversation_id, branch_id, role, content) VALUES (?,?,?,?)')
-            .run(conv.id, branchId, 'assistant', delta);
-          assistantMsgId = Number(info.lastInsertRowid);
-        } else {
-          db.prepare('UPDATE messages SET content = content || ? WHERE id = ?').run(delta, assistantMsgId);
-        }
-        res.write(`data: ${JSON.stringify({ delta, content: fullContent })}\n\n`);
+    for await (const event of runToolLoop(conv, apiMessages)) {
+      if (event.type === 'tool_call') {
+        res.write(`data: ${JSON.stringify({ tool_call: { name: event.name, args: event.args } })}\n\n`);
+      } else if (event.type === 'delta') {
+        fullContent += event.content;
+        res.write(`data: ${JSON.stringify({ delta: event.content })}\n\n`);
+      } else if (event.type === 'reasoning_delta') {
+        fullReasoning += event.content;
+        res.write(`data: ${JSON.stringify({ reasoning_delta: event.content })}\n\n`);
+      } else if (event.type === 'done') {
+        if (!fullContent) fullContent = event.content;
+        if (!fullReasoning) fullReasoning = event.reasoning_content || '';
+        if (event.toolsCalled) toolsCalled = event.toolsCalled;
       }
     }
 
-    res.write(`data: ${JSON.stringify({ done: true, messageId: assistantMsgId, fullContent, reasoning_content: fullReasoning || null })}\n\n`);
+    if (fullContent || fullReasoning || toolsCalled.length > 0) {
+      const toolCallsJson = toolsCalled.length > 0 ? JSON.stringify(toolsCalled) : null;
+      const info = db.prepare('INSERT INTO messages (conversation_id, branch_id, role, content, reasoning_content, tool_calls) VALUES (?,?,?,?,?,?)')
+        .run(conv.id, branchId, 'assistant', fullContent, fullReasoning || null, toolCallsJson);
+      const assistantMsgId = Number(info.lastInsertRowid);
+      res.write(`data: ${JSON.stringify({ done: true, messageId: assistantMsgId, fullContent, reasoning_content: fullReasoning || null, tool_calls: toolsCalled })}\n\n`);
+    }
+
     res.end();
   } catch (e) {
     if (!res.headersSent) res.status(500).json({ error: e.message });
-    else { res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`); res.end(); }
+    else { try { res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`); res.end(); } catch {} }
   }
 });
 
@@ -94,11 +93,26 @@ router.post('/:id/chat-sync', async (req, res) => {
     }
 
     const apiMessages = buildApiMessages(conv, branchId);
-    const result = await callDeepSeek(conv, apiMessages);
-    const info = db.prepare('INSERT INTO messages (conversation_id, branch_id, role, content) VALUES (?,?,?,?)')
-      .run(conv.id, branchId, 'assistant', result.content);
+    if (apiMessages.length > 0 && apiMessages[0].role === 'system') {
+      apiMessages[0].content += SCP_SYSTEM_PROMPT;
+    }
 
-    res.json({ messageId: Number(info.lastInsertRowid), content: result.content, reasoning_content: result.reasoning_content });
+    let fullContent = '';
+    let fullReasoning = null;
+    let toolsCalled = [];
+    for await (const event of runToolLoop(conv, apiMessages)) {
+      if (event.type === 'done') {
+        fullContent = event.content;
+        fullReasoning = event.reasoning_content;
+        if (event.toolsCalled) toolsCalled = event.toolsCalled;
+      }
+    }
+
+    const toolCallsJson = toolsCalled.length > 0 ? JSON.stringify(toolsCalled) : null;
+    const info = db.prepare('INSERT INTO messages (conversation_id, branch_id, role, content, reasoning_content, tool_calls) VALUES (?,?,?,?,?,?)')
+      .run(conv.id, branchId, 'assistant', fullContent, fullReasoning, toolCallsJson);
+
+    res.json({ messageId: Number(info.lastInsertRowid), content: fullContent, reasoning_content: fullReasoning, tool_calls: toolsCalled });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

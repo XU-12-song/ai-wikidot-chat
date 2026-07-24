@@ -9,7 +9,7 @@ export function getConversation(id) {
 
 export function getBranchMessages(conversationId, branchId) {
   return db.prepare(`
-    SELECT id, role, content, created_at FROM messages
+    SELECT id, role, content, reasoning_content, tool_calls, created_at FROM messages
     WHERE conversation_id = ? AND branch_id = ?
     ORDER BY id ASC
   `).all(conversationId, branchId);

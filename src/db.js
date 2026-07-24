@@ -46,6 +46,9 @@ db.exec(`
   )
 `);
 
+try { db.exec(`ALTER TABLE messages ADD COLUMN reasoning_content TEXT DEFAULT NULL`); } catch {}
+try { db.exec(`ALTER TABLE messages ADD COLUMN tool_calls TEXT DEFAULT NULL`); } catch {}
+
 db.exec('PRAGMA foreign_keys = ON');
 
 export default db;
