@@ -26,9 +26,13 @@ copy .env.example .env    # Windows
 
 # 3. 同步维基数据（如需使用维基工具）
 npm run wikidot-sync       # 生成 wikidot.db
+# 若失败请使用科学上网再次尝试
+# 可以通过Enter暂停
+# 若中途退出未能获取完可重新执行，不会损失太多进度
+# 通常花费6~48小时
 
 # 4. 启动
-npm start                  # 生产模式
+npm start                  # 生产模式，如果你是使用者，那么这是你需要做的
 npm run dev                # 开发模式（文件变更自动重启）
 ```
 
@@ -64,20 +68,20 @@ npm run dev                # 开发模式（文件变更自动重启）
 
 ## API 路由
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/conversations` | 获取所有会话列表 |
-| `POST` | `/api/conversations` | 创建新会话 |
-| `GET` | `/api/conversations/:id` | 获取会话详情（含消息） |
-| `DELETE` | `/api/conversations/:id` | 删除会话 |
-| `PUT` | `/api/conversations/:id/settings` | 更新会话模型参数 |
-| `POST` | `/api/conversations/:id/chat` | 流式聊天（SSE） |
-| `POST` | `/api/conversations/:id/chat-sync` | 同步聊天（回退） |
-| `POST` | `/api/conversations/:id/regenerate` | 重新生成最后一条 AI 回复（SSE） |
-| `PUT` | `/api/conversations/:id/messages/:msgId` | 编辑消息（自动创建新分支） |
-| `GET` | `/api/conversations/:id/branches` | 获取分支列表 |
-| `POST` | `/api/conversations/:id/branches` | 创建分支（fork） |
-| `PUT` | `/api/conversations/:id/branches/switch` | 切换活跃分支 |
+| 方法     | 路径                                     | 说明                            |
+| -------- | ---------------------------------------- | ------------------------------- |
+| `GET`    | `/api/conversations`                     | 获取所有会话列表                |
+| `POST`   | `/api/conversations`                     | 创建新会话                      |
+| `GET`    | `/api/conversations/:id`                 | 获取会话详情（含消息）          |
+| `DELETE` | `/api/conversations/:id`                 | 删除会话                        |
+| `PUT`    | `/api/conversations/:id/settings`        | 更新会话模型参数                |
+| `POST`   | `/api/conversations/:id/chat`            | 流式聊天（SSE）                 |
+| `POST`   | `/api/conversations/:id/chat-sync`       | 同步聊天（回退）                |
+| `POST`   | `/api/conversations/:id/regenerate`      | 重新生成最后一条 AI 回复（SSE） |
+| `PUT`    | `/api/conversations/:id/messages/:msgId` | 编辑消息（自动创建新分支）      |
+| `GET`    | `/api/conversations/:id/branches`        | 获取分支列表                    |
+| `POST`   | `/api/conversations/:id/branches`        | 创建分支（fork）                |
+| `PUT`    | `/api/conversations/:id/branches/switch` | 切换活跃分支                    |
 
 ## 维基工具
 

@@ -16,7 +16,7 @@ const logger = pino({
 
 
 export async function scheduler(options) {
-    const limit = pLimit(25); // 最多同时运行 25 个异步任务
+    const limit = pLimit(8); // 最多同时运行 8 个异步任务
     const { SITE_NAME } = options;
     initDb();
     let site = null;
