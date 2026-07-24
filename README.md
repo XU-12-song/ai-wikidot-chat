@@ -14,16 +14,22 @@
 ## 快速开始
 
 ```bash
+# 0. 前置要求：Node.js >= 22（需要 --env-file 内置 .env 支持）
+
 # 1. 安装依赖
 npm install
 
 # 2. 配置环境变量
-cp .env.example .env
-# 编辑 .env，填入你的 DEEPSEEK_API_KEY
+cp .env.example .env      # Linux / macOS
+copy .env.example .env    # Windows
+# 编辑 .env，填入 DEEPSEEK_API_KEY
 
-# 3. 启动
-npm start        # 生产模式
-npm run dev      # 开发模式（文件变更自动重启）
+# 3. 同步维基数据（如需使用维基工具）
+npm run wikidot-sync       # 生成 wikidot.db
+
+# 4. 启动
+npm start                  # 生产模式
+npm run dev                # 开发模式（文件变更自动重启）
 ```
 
 访问 `http://localhost:3000`
