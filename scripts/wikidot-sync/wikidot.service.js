@@ -149,6 +149,7 @@ export class SelectedPage {
         this.tags = page.tags;
         this.createdAt = page.createdAt;
         this.parentName = page.parentFullname;
+        this.rating = page.rating;
     }
 }
 

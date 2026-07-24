@@ -12,7 +12,8 @@ export async function initDb() {
     tags TEXT,
     source_form TEXT,
     created_at TEXT,
-    parent_name TEXT
+    parent_name TEXT,
+    rating INT
   )
 `);
 }

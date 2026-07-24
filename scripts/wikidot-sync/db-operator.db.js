@@ -16,10 +16,10 @@ export function findPageDataByName(name) {
 }
 
 export function insertSelectedPageData(selectedPageData) {
-    const { name, title, downvote, upvote, author, source, tags, createdAt, parentName } = selectedPageData;
+    const { name, title, downvote, upvote, author, source, tags, createdAt, parentName, rating } = selectedPageData;
 
     const stmt = db.prepare(`
-        INSERT INTO pages ( name, title, downvote, upvote, author, source, tags, source_form, created_at,parent_name ) VALUES (?,?,?,?,?,?,?,?,?,?)`
+        INSERT INTO pages ( name, title, downvote, upvote, author, source, tags, source_form, created_at,parent_name,rating ) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
     )
     stmt.run(
         name,
@@ -31,7 +31,8 @@ export function insertSelectedPageData(selectedPageData) {
         JSON.stringify(tags),
         source.form,
         createdAt.toISOString(),
-        parentName
+        parentName,
+        rating
     );
     return true;
 }
