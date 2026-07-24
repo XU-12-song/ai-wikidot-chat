@@ -1,7 +1,13 @@
 import { Client } from "@ukwhatn/wikidot";
 import axios from "axios";
 import * as cheerio from 'cheerio';
-import pino from "pino";
+import pino from "pino"; import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+dotenv.config({ path: resolve(__dirname, '../..', '.env') });
 
 const logger = pino({
     transport: {
@@ -65,7 +71,7 @@ class pageSource {
 
 async function getPageSourceByFetch(name) {
     try {
-        const { data: rawSource } = await axios.get(`https://scp-wiki-cn.wikidot.com/${name}`);
+        const { data: rawSource } = await axios.get(`https://${process.env.SITE_NAME || 'scp-wiki-cn'}.wikidot.com/${name}`);
         const $ = cheerio.load(rawSource);
         return $('#page-content').html();
     } catch (e) {
