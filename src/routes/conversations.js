@@ -17,9 +17,9 @@ router.post('/', (req, res) => {
       INSERT INTO conversations (title, model, temperature, max_tokens, top_p, system_prompt, reasoning_effort)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(title || 'New Chat', model || 'deepseek-v4-pro',
-           temperature ?? 0.7, max_tokens ?? 4096, top_p ?? 1.0,
-           system_prompt || 'You are a helpful assistant.',
-           reasoning_effort || 'high');
+      temperature ?? 0.7, max_tokens ?? 4096, top_p ?? 1.0,
+      system_prompt || 'You are a helpful assistant.',
+      reasoning_effort || 'high');
     const convId = Number(info.lastInsertRowid);
     const bi = db.prepare('INSERT INTO branches (conversation_id, name) VALUES (?, ?)').run(convId, 'main');
     const branchId = Number(bi.lastInsertRowid);
@@ -61,8 +61,8 @@ router.put('/:id/settings', (req, res) => {
     const { model, temperature, max_tokens, top_p, system_prompt, reasoning_effort } = req.body;
     db.prepare(`UPDATE conversations SET model=?, temperature=?, max_tokens=?, top_p=?, system_prompt=?, reasoning_effort=? WHERE id=?`)
       .run(model || conv.model, temperature ?? conv.temperature, max_tokens ?? conv.max_tokens,
-           top_p ?? conv.top_p, system_prompt || conv.system_prompt,
-           reasoning_effort || conv.reasoning_effort, req.params.id);
+        top_p ?? conv.top_p, system_prompt || conv.system_prompt,
+        reasoning_effort || conv.reasoning_effort, req.params.id);
     return getConversation(req.params.id);
   });
 });

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { getConversation, buildApiMessages, callDeepSeek } from '../helpers.js';
+import { getConversation, buildApiMessages } from '../helpers.js';
 import { SCP_SYSTEM_PROMPT, runToolLoop } from '../tools/index.js';
 
 const router = Router();
@@ -41,28 +41,62 @@ router.put('/:id/messages/:msgId', async (req, res) => {
       .run(conv.id, newBid, msg.role, content);
     const newMsgId = Number(ei.lastInsertRowid);
 
-    let aiResponse = null;
-
-    // If editing user message → auto call DeepSeek
-    if (isUser) {
-      const apiMsgs = buildApiMessages(conv, newBid);
-      if (apiMsgs.length > 0 && apiMsgs[0].role === 'system') {
-        apiMsgs[0].content += SCP_SYSTEM_PROMPT;
-      }
-      const result = await callDeepSeek(conv, apiMsgs);
-      const aiInfo = db.prepare('INSERT INTO messages (conversation_id, branch_id, role, content) VALUES (?,?,?,?)')
-        .run(conv.id, newBid, 'assistant', result.content);
-      aiResponse = { messageId: Number(aiInfo.lastInsertRowid), content: result.content, reasoning_content: result.reasoning_content };
-    }
-
     // Switch to new branch
     db.prepare('UPDATE conversations SET active_branch_id = ? WHERE id = ?').run(newBid, conv.id);
 
-    const newBranch = db.prepare('SELECT * FROM branches WHERE id = ?').get(newBid);
+    // If editing AI message → just return branch info (no re-generation)
+    if (!isUser) {
+      const newBranch = db.prepare('SELECT * FROM branches WHERE id = ?').get(newBid);
+      return res.json({ success: true, branch: newBranch, newMsgId, aiResponse: null });
+    }
 
-    res.json({ success: true, branch: newBranch, newMsgId, aiResponse });
+    // Editing user message → SSE streaming AI response
+    const apiMsgs = buildApiMessages(conv, newBid);
+    if (apiMsgs.length > 0 && apiMsgs[0].role === 'system') {
+      apiMsgs[0].content += SCP_SYSTEM_PROMPT;
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    res.flushHeaders();
+    if (res.socket) res.socket.setNoDelay(true);
+
+    let fullContent = '';
+    let fullReasoning = '';
+    let toolsCalled = [];
+
+    for await (const event of runToolLoop(conv, apiMsgs)) {
+      if (event.type === 'tool_call') {
+        res.write(`data: ${JSON.stringify({ tool_call: { name: event.name, args: event.args } })}\n\n`);
+      } else if (event.type === 'delta') {
+        fullContent += event.content;
+        res.write(`data: ${JSON.stringify({ delta: event.content })}\n\n`);
+      } else if (event.type === 'reasoning_delta') {
+        fullReasoning += event.content;
+        res.write(`data: ${JSON.stringify({ reasoning_delta: event.content })}\n\n`);
+      } else if (event.type === 'done') {
+        if (!fullContent) fullContent = event.content;
+        if (!fullReasoning) fullReasoning = event.reasoning_content || '';
+        if (event.toolsCalled) toolsCalled = event.toolsCalled;
+      }
+    }
+
+    if (fullContent || fullReasoning || toolsCalled.length > 0) {
+      const toolCallsJson = toolsCalled.length > 0 ? JSON.stringify(toolsCalled) : null;
+      const info = db.prepare('INSERT INTO messages (conversation_id, branch_id, role, content, reasoning_content, tool_calls) VALUES (?,?,?,?,?,?)')
+        .run(conv.id, newBid, 'assistant', fullContent, fullReasoning || null, toolCallsJson);
+      const assistantMsgId = Number(info.lastInsertRowid);
+      res.write(`data: ${JSON.stringify({ done: true, messageId: assistantMsgId, fullContent, reasoning_content: fullReasoning || null, tool_calls: toolsCalled })}\n\n`);
+    }
+
+    res.end();
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    if (!res.headersSent) res.status(500).json({ error: e.message });
+    else { try { res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`); res.end(); } catch {} }
   }
 });
 

@@ -56,11 +56,6 @@ export async function scheduler(options) {
         }
     }
 
-    for (let index = 0; index < 100; index++) {
-        console.log(filtedPagesLength)
-
-    }
-
     const tasks = filtedPages.map(page =>
         limit(() => mission(page))
     );
