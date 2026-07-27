@@ -1,0 +1,129 @@
+/* Main */
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--bg0)
+}
+
+.main-head {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg1);
+    flex-wrap: wrap
+}
+
+.main-head h2 {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px
+}
+
+.main-head select {
+    padding: 5px 10px;
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px
+}
+
+.main-head select option {
+    background: var(--bg1)
+}
+
+.badge {
+    font-size: 10px;
+    padding: 3px 10px;
+    background: var(--bg3);
+    border-radius: 20px;
+    color: var(--text);
+    white-space: nowrap
+}
+
+.btn-sm {
+    padding: 5px 12px;
+    border-radius: 7px;
+    font-size: 11px;
+    font-weight: 500
+}
+
+.btn-ghost {
+    background: var(--bg3);
+    color: var(--text);
+    transition: all 0.2s;
+}
+
+.btn-ghost:hover {
+    background: var(--bg2);
+    color: var(--muted)
+}
+
+/* Empty */
+.empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--muted);
+    gap: 12px
+}
+
+.empty h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text)
+}
+
+.empty p {
+    font-size: 13px
+}
+
+/* Input */
+.input-bar {
+    padding: var(--gap) 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 10px;
+    background: var(--bg1)
+}
+
+.input-bar textarea {
+    flex: 1;
+    padding: 10px 16px;
+    background: var(--bg2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: none;
+    min-height: 44px;
+    max-height: 180px
+}
+
+.input-bar textarea:focus {
+    border-color: var(--accent)
+}
+
+.input-bar .btn-send {
+    padding: 10px 22px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap
+}
+
+.input-bar .btn-send:disabled {
+    opacity: .5;
+    cursor: not-allowed
+}

@@ -1,0 +1,97 @@
+/* Settings */
+.settings {
+    width: 280px;
+    min-width: 280px;
+    background: var(--bg1);
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--border);
+    overflow-y: auto
+}
+
+.settings h3 {
+    padding: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border)
+}
+
+.field {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border)
+}
+
+.field label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 500
+}
+
+.field select,
+.field input[type="number"],
+.field textarea {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--bg2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px
+}
+
+.field textarea {
+    min-height: 80px;
+    resize: vertical
+}
+
+.range-row {
+    display: flex;
+    align-items: center;
+    gap: 8px
+}
+
+.range-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent)
+}
+
+.range-row .val {
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 600;
+    min-width: 34px;
+    text-align: right
+}
+
+.btn-apply {
+    width: 100%;
+    padding: 10px;
+    margin-top: 2px;
+    border-radius: 8px;
+    font-weight: 600;
+    background: var(--accent);
+    color: #fff
+}
+
+.btn-apply:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(94, 140, 214, .25)
+}
+
+.btn-apply:disabled {
+    opacity: .5;
+    cursor: wait
+}
+
+.settings .meta {
+    padding: 12px 16px;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap
+}
