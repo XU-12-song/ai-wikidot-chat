@@ -153,3 +153,5 @@ CLAUDE.md
 
 # database
 *.db
+*.db-shm
+*.db-wal
