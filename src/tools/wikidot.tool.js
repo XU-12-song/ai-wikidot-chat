@@ -2,10 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pageSummary, buildOrderClause } from './utils.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const wikidotDb = new DatabaseSync(path.join(__dirname, '..', '..', 'wikidot.db'));
-wikidotDb.exec('PRAGMA journal_mode = WAL');
+import db from '../pool.js';
 
 /**
  * searchPages – structured column-level search for SCP-CN wiki pages.
@@ -113,7 +110,7 @@ export function searchPages(options = {}) {
     LIMIT ${limit}
   `;
 
-  const stmt = wikidotDb.prepare(sql);
+  const stmt = db.prepare(sql);
   const rows = stmt.all(...params);
   return rows.map(pageSummary);
 }
@@ -132,7 +129,89 @@ export function getChildPages(parentName, order = 'name', limit = -1) {
     ORDER BY ${orderClause}
   `;
   if (limit > 0) sql += ' LIMIT ?2';
-  const stmt = wikidotDb.prepare(sql);
+  const stmt = db.prepare(sql);
   const rows = limit > 0 ? stmt.all(parentName, limit) : stmt.all(parentName);
   return rows.map(pageSummary);
 }
+
+/**
+ * getPageContent – 返回页面的原始 source。
+ */
+export async function getPageContent(name, MAX_SOURCE_LEN) {
+  const row = db.prepare(
+    'SELECT name, source, source_form FROM pages WHERE name = ?'
+  ).get(name);
+
+  if (!row) return null;
+
+
+  if (row.source && row.source.length > MAX_SOURCE_LEN) {
+    row.source = row.source.slice(0, MAX_SOURCE_LEN)
+      + `\n\n[... 内容已截断，原长度 ${row.source.length} 字符。如需完整内容请使用 getChildPages 获取子页面 ...]`;
+  }
+  return {
+    name: row.name,
+    source_form: row.source_form,
+    source: row.source,
+  };
+}
+
+export const WIKIDOT_TOOL_DEFINITIONS = [
+  {
+    type: 'function',
+    function: {
+      name: 'searchPages',
+      description:
+        'Structured search of SCP-CN wiki pages. ' +
+        'All column filters are optional AND combined. ' +
+        'At least one filter should be provided. ' +
+        'Returns up to N page summaries (name, title, upvote, downvote, rating, author, tags, source_form, created_at, parent_name) without full source.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'LIKE match on page fullname, e.g. "4725"' },
+          title: { type: 'string', description: 'LIKE match on page title, e.g. "SCP-CN"' },
+          content: { type: 'string', description: 'LIKE match on page source body (wikitext / HTML)' },
+          author: { type: 'string', description: 'LIKE match on author JSON, e.g. "Dr. Gears"' },
+          tags: { type: 'array', items: { type: 'string' }, description: 'ALL these tags must be present (AND logic), e.g. ["scp","keter"]' },
+          parent: { type: 'string', description: 'Exact match on parent_name, e.g. "scp-cn-4725"' },
+          sourceForm: { type: 'string', enum: ['wikitext', 'html'], description: 'Exact match on source format (wikitext or html)' },
+          pattern: { type: 'string', description: 'Legacy broad search across name, title, tags, source, author (OR logic). Use when you have a general keyword. Can be combined with other filters.' },
+          sort: { type: 'string', enum: ['name', 'title', 'created_at', 'upvote', 'downvote', 'rating'], description: 'Sort column. Default: created_at' },
+          order: { type: 'string', enum: ['asc', 'desc'], description: 'Sort direction. Default: desc' },
+          limit: { type: 'integer', description: 'Max results. Default: 20. Max: 50' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getPageContent',
+      description: '获取 SCP-CN 维基指定页面的完整源内容（HTML 或 wikitext）。html-block-iframe 会被自动处理。',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: '页面 fullname，如 "scp-cn-4725"、"experiment-log-914-cn"、"fragment:scp-cn-4345-1"' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'getChildPages',
+      description: '获取某个页面的所有子页面列表。用于迭代页（实验记录）、故事系列等多页内容场景。',
+      parameters: {
+        type: 'object',
+        properties: {
+          parentName: { type: 'string', description: '父页面 fullname' },
+          order: { type: 'string', enum: ['name', 'created_at', 'upvote', 'rating'], description: '排序字段：name=名称字典序（默认）、created_at=创建时间、upvote=好评数、rating=总评分（upvote-downvote）' },
+          limit: { type: 'integer', description: '返回数量上限，不设则返回全部' },
+        },
+        required: ['parentName'],
+      },
+    },
+  },
+];

@@ -1,83 +1,58 @@
 import { Router } from 'express';
-import db from '../db.js';
-import { getConversation, buildApiMessages } from '../helpers.js';
-import { SCP_SYSTEM_PROMPT, runToolLoop } from '../tools/index.js';
+import * as convService from '../services/conversation.service.js';
+import * as chatService from '../services/chat.service.js';
+import * as messageService from '../services/message.service.js';
+import { runToolLoop } from '../tools/index.js';
 
 const router = Router();
 
-// ─── Edit message (creates new branch) ─────────────────────────────────────────
+function setupSSE(res) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+  if (res.socket) res.socket.setNoDelay(true);
+}
+
+function sendSSE(res, data) {
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
+// ── Edit message (creates branch, optionally streams AI response) ──
 
 router.put('/:id/messages/:msgId', async (req, res) => {
   try {
-    const conv = getConversation(req.params.id);
+    const conv = convService.get(req.params.id);
     if (!conv) return res.status(404).json({ error: 'Not found' });
 
-    const msg = db.prepare('SELECT * FROM messages WHERE id = ? AND conversation_id = ?')
-      .get(req.params.msgId, conv.id);
-    if (!msg) return res.status(404).json({ error: 'Message not found' });
+    const result = messageService.edit(conv.id, req.params.msgId, req.body.content, conv.active_branch_id);
+    if (!result) return res.status(404).json({ error: 'Message not found' });
 
-    const { content } = req.body;
-    const oldBranchId = conv.active_branch_id;
-    const isUser = msg.role === 'user';
-
-    // Copy messages before the edit point
-    const prevMsgs = db.prepare(`
-      SELECT * FROM messages WHERE conversation_id = ? AND branch_id = ? AND id < ? ORDER BY id ASC
-    `).all(conv.id, oldBranchId, req.params.msgId);
-
-    // New branch
-    const suffix = isUser ? `edit-user-${req.params.msgId}` : `edit-ai-${req.params.msgId}`;
-    const bi = db.prepare('INSERT INTO branches (conversation_id, parent_branch_id, name) VALUES (?,?,?)')
-      .run(conv.id, oldBranchId, suffix);
-    const newBid = Number(bi.lastInsertRowid);
-
-    for (const pm of prevMsgs) {
-      db.prepare('INSERT INTO messages (conversation_id, branch_id, role, content, reasoning_content, created_at) VALUES (?,?,?,?,?,?)')
-        .run(conv.id, newBid, pm.role, pm.content, pm.reasoning_content || null, pm.created_at);
+    // editing AI message → just return branch info
+    if (!result.isUser) {
+      return res.json({ success: true, branch: result.branch, newMsgId: result.newMsgId, aiResponse: null });
     }
 
-    // Insert the edited message
-    const ei = db.prepare('INSERT INTO messages (conversation_id, branch_id, role, content) VALUES (?,?,?,?)')
-      .run(conv.id, newBid, msg.role, content);
-    const newMsgId = Number(ei.lastInsertRowid);
+    // editing user message → stream AI response
+    const updatedConv = convService.get(conv.id);
+    const apiMessages = chatService.getApiMessages(updatedConv, result.newBid);
 
-    // Switch to new branch
-    db.prepare('UPDATE conversations SET active_branch_id = ? WHERE id = ?').run(newBid, conv.id);
+    setupSSE(res);
 
-    // If editing AI message → just return branch info (no re-generation)
-    if (!isUser) {
-      const newBranch = db.prepare('SELECT * FROM branches WHERE id = ?').get(newBid);
-      return res.json({ success: true, branch: newBranch, newMsgId, aiResponse: null });
-    }
+    let fullContent = '', fullReasoning = '', toolsCalled = [];
 
-    // Editing user message → SSE streaming AI response
-    const apiMsgs = buildApiMessages(conv, newBid);
-    if (apiMsgs.length > 0 && apiMsgs[0].role === 'system') {
-      apiMsgs[0].content += SCP_SYSTEM_PROMPT;
-    }
-
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    });
-    res.flushHeaders();
-    if (res.socket) res.socket.setNoDelay(true);
-
-    let fullContent = '';
-    let fullReasoning = '';
-    let toolsCalled = [];
-
-    for await (const event of runToolLoop(conv, apiMsgs)) {
-      if (event.type === 'tool_call') {
-        res.write(`data: ${JSON.stringify({ tool_call: { name: event.name, args: event.args } })}\n\n`);
+    for await (const event of runToolLoop(updatedConv, apiMessages)) {
+      if (event.type === 'reasoning_delta') {
+        fullReasoning += event.content;
+        sendSSE(res, { reasoning_delta: event.content });
       } else if (event.type === 'delta') {
         fullContent += event.content;
-        res.write(`data: ${JSON.stringify({ delta: event.content })}\n\n`);
-      } else if (event.type === 'reasoning_delta') {
-        fullReasoning += event.content;
-        res.write(`data: ${JSON.stringify({ reasoning_delta: event.content })}\n\n`);
+        sendSSE(res, { delta: event.content });
+      } else if (event.type === 'tool_call') {
+        sendSSE(res, { tool_call: { name: event.name, args: event.args } });
       } else if (event.type === 'done') {
         if (!fullContent) fullContent = event.content;
         if (!fullReasoning) fullReasoning = event.reasoning_content || '';
@@ -86,62 +61,42 @@ router.put('/:id/messages/:msgId', async (req, res) => {
     }
 
     if (fullContent || fullReasoning || toolsCalled.length > 0) {
-      const toolCallsJson = toolsCalled.length > 0 ? JSON.stringify(toolsCalled) : null;
-      const info = db.prepare('INSERT INTO messages (conversation_id, branch_id, role, content, reasoning_content, tool_calls) VALUES (?,?,?,?,?,?)')
-        .run(conv.id, newBid, 'assistant', fullContent, fullReasoning || null, toolCallsJson);
-      const assistantMsgId = Number(info.lastInsertRowid);
-      res.write(`data: ${JSON.stringify({ done: true, messageId: assistantMsgId, fullContent, reasoning_content: fullReasoning || null, tool_calls: toolsCalled })}\n\n`);
+      const msgId = chatService.saveAssistantMessage(updatedConv.id, result.newBid, fullContent, fullReasoning, toolsCalled);
+      sendSSE(res, { done: true, messageId: msgId, fullContent, reasoning_content: fullReasoning || null, tool_calls: toolsCalled });
     }
 
     res.end();
   } catch (e) {
     if (!res.headersSent) res.status(500).json({ error: e.message });
-    else { try { res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`); res.end(); } catch {} }
+    else { try { sendSSE(res, { error: e.message }); res.end(); } catch {} }
   }
 });
 
-// ─── Regenerate last assistant message (SSE streaming) ──────────────────────────
+// ── Regenerate last assistant message ──
 
 router.post('/:id/regenerate', async (req, res) => {
   try {
-    const conv = getConversation(req.params.id);
+    const conv = convService.get(req.params.id);
     if (!conv) return res.status(404).json({ error: 'Not found' });
+
     const branchId = conv.active_branch_id;
+    chatService.deleteLastAssistant(conv.id, branchId);
 
-    // Delete last assistant message
-    const last = db.prepare(`
-      SELECT id FROM messages WHERE conversation_id = ? AND branch_id = ? AND role = 'assistant'
-      ORDER BY id DESC LIMIT 1
-    `).get(conv.id, branchId);
-    if (last) db.prepare('DELETE FROM messages WHERE id = ?').run(last.id);
+    const apiMessages = chatService.getApiMessages(conv, branchId);
 
-    const apiMsgs = buildApiMessages(conv, branchId);
-    if (apiMsgs.length > 0 && apiMsgs[0].role === 'system') {
-      apiMsgs[0].content += SCP_SYSTEM_PROMPT;
-    }
+    setupSSE(res);
 
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',
-    });
-    res.flushHeaders();
-    if (res.socket) res.socket.setNoDelay(true);
+    let fullContent = '', fullReasoning = '', toolsCalled = [];
 
-    let fullContent = '';
-    let fullReasoning = '';
-    let toolsCalled = [];
-
-    for await (const event of runToolLoop(conv, apiMsgs)) {
-      if (event.type === 'tool_call') {
-        res.write(`data: ${JSON.stringify({ tool_call: { name: event.name, args: event.args } })}\n\n`);
+    for await (const event of runToolLoop(conv, apiMessages)) {
+      if (event.type === 'reasoning_delta') {
+        fullReasoning += event.content;
+        sendSSE(res, { reasoning_delta: event.content });
       } else if (event.type === 'delta') {
         fullContent += event.content;
-        res.write(`data: ${JSON.stringify({ delta: event.content })}\n\n`);
-      } else if (event.type === 'reasoning_delta') {
-        fullReasoning += event.content;
-        res.write(`data: ${JSON.stringify({ reasoning_delta: event.content })}\n\n`);
+        sendSSE(res, { delta: event.content });
+      } else if (event.type === 'tool_call') {
+        sendSSE(res, { tool_call: { name: event.name, args: event.args } });
       } else if (event.type === 'done') {
         if (!fullContent) fullContent = event.content;
         if (!fullReasoning) fullReasoning = event.reasoning_content || '';
@@ -150,17 +105,14 @@ router.post('/:id/regenerate', async (req, res) => {
     }
 
     if (fullContent || fullReasoning || toolsCalled.length > 0) {
-      const toolCallsJson = toolsCalled.length > 0 ? JSON.stringify(toolsCalled) : null;
-      const info = db.prepare('INSERT INTO messages (conversation_id, branch_id, role, content, reasoning_content, tool_calls) VALUES (?,?,?,?,?,?)')
-        .run(conv.id, branchId, 'assistant', fullContent, fullReasoning || null, toolCallsJson);
-      const assistantMsgId = Number(info.lastInsertRowid);
-      res.write(`data: ${JSON.stringify({ done: true, messageId: assistantMsgId, fullContent, reasoning_content: fullReasoning || null, tool_calls: toolsCalled })}\n\n`);
+      const msgId = chatService.saveAssistantMessage(conv.id, branchId, fullContent, fullReasoning, toolsCalled);
+      sendSSE(res, { done: true, messageId: msgId, fullContent, reasoning_content: fullReasoning || null, tool_calls: toolsCalled });
     }
 
     res.end();
   } catch (e) {
     if (!res.headersSent) res.status(500).json({ error: e.message });
-    else { try { res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`); res.end(); } catch {} }
+    else { try { sendSSE(res, { error: e.message }); res.end(); } catch {} }
   }
 });
 

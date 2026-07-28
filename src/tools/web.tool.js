@@ -25,7 +25,7 @@ async function fetchBingSearchResults(query) {
     const link = h2a.attr('href');
     // snippet is usually in .b_caption p or the element following h2
     const snippet = $(el).find('.b_caption p').first().text().trim()
-                || $(el).find('.b_lineclamp2').first().text().trim();
+      || $(el).find('.b_lineclamp2').first().text().trim();
     if (title && link) {
       results.push({ title, url: link, snippet });
     }
@@ -101,3 +101,35 @@ export async function webFetch(url) {
     return { url, error: error.message };
   }
 }
+
+
+export const WEB_TOOL_DEFINITIONS = [
+  {
+    type: 'function',
+    function: {
+      name: 'webSearch',
+      description: '使用搜索引擎搜索外部网络信息（SCP 相关的讨论帖、解读文章、二创等）。仅在维基数据库信息不足时使用。',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: '搜索查询词' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'webFetch',
+      description: '抓取指定 URL 的网页内容，提取纯文本。用于获取 webSearch 结果中某个链接的详细内容。',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: '要抓取的网页 URL' },
+        },
+        required: ['url'],
+      },
+    },
+  },
+];

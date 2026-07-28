@@ -1,9 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const db = new DatabaseSync(path.join(__dirname, '..', 'chat.db'));
+import db from './pool';
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS conversations (
@@ -19,7 +17,7 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   )
 `);
-try { db.exec(`ALTER TABLE conversations ADD COLUMN reasoning_effort TEXT DEFAULT 'high'`); } catch {}
+try { db.exec(`ALTER TABLE conversations ADD COLUMN reasoning_effort TEXT DEFAULT 'high'`); } catch { }
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS branches (
@@ -46,9 +44,18 @@ db.exec(`
   )
 `);
 
-try { db.exec(`ALTER TABLE messages ADD COLUMN reasoning_content TEXT DEFAULT NULL`); } catch {}
-try { db.exec(`ALTER TABLE messages ADD COLUMN tool_calls TEXT DEFAULT NULL`); } catch {}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL,
+    start_from INTEGER NOT NULL,
+    length INTEGER NOT NULL,
+    note TEXT NOT NULL,
+    content TEXT,
+    reasoning_content TEXT DEFAULT NULL,
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+  )
+`)
 
-db.exec('PRAGMA foreign_keys = ON');
-
-export default db;
+try { db.exec(`ALTER TABLE messages ADD COLUMN reasoning_content TEXT DEFAULT NULL`); } catch { }
+try { db.exec(`ALTER TABLE messages ADD COLUMN tool_calls TEXT DEFAULT NULL`); } catch { }
