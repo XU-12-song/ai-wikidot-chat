@@ -3,9 +3,8 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 
 import { searchPages, getChildPages, getPageContent, WIKIDOT_TOOL_DEFINITIONS } from './wikidot.tool.js';
-
 import { webSearch, webFetch, WEB_TOOL_DEFINITIONS } from './web.tool.js';
-import { createOpenAIClient, THINKING_ENABLED } from '../config.js';
+import { createToolExecutor, runToolLoop } from './tool-loop.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -39,155 +38,38 @@ export const SCP_SYSTEM_PROMPT = `
 当用户询问 SCP-CN 相关内容时，请使用以上工具查询真实数据后再回答。不要凭空编造任何条目内容。
 `;
 
-// ─── Tool definitions (OpenAI function-calling format) ─────────────────────────
+// ─── Tool definitions ─────────────────────────────────────────────────────────
 
-export const TOOL_DEFINITIONS = [WEB_TOOL_DEFINITIONS, WIKIDOT_TOOL_DEFINITIONS].flat();
+export const SCP_TOOL_DEFINITIONS = [...WEB_TOOL_DEFINITIONS, ...WIKIDOT_TOOL_DEFINITIONS];
 
-// ─── Tool dispatcher ───────────────────────────────────────────────────────────
+// ─── Tool executor ────────────────────────────────────────────────────────────
 
 const MAX_SOURCE_LEN = 500000;
 
-const tools = {
-  // 同步工具可以直接返回结果
+const toolMap = {
   searchPages: (args) => searchPages(args),
-
-  // 异步工具加上内部特殊处理
   getPageContent: async (args) => await getPageContent(args, MAX_SOURCE_LEN),
-
   getChildPages: (args) => getChildPages(args.parentName, args.order || 'name', args.limit || -1),
-
   webSearch: async (args) => await webSearch(args.query),
-  webFetch: async (args) => await webFetch(args.url)
+  webFetch: async (args) => await webFetch(args.url),
 };
 
-async function executeTool(name, args) {
-  const toolFn = tools[name];
-  if (!toolFn) {
-    return JSON.stringify({ error: `未知工具: ${name}` });
-  }
+const executeScpTool = createToolExecutor(toolMap);
 
-  try {
-    const result = await toolFn(args);
-    return JSON.stringify(result);
-  } catch (error) {
-    return JSON.stringify({ error: error.message || '工具执行出错' });
-  }
-}
-
-// ─── Tool-calling loop ─────────────────────────────────────────────────────────
+// ─── Convenience: runToolLoop pre-bound with WIKIDOT tools ────────────────────────
 
 /**
- * Async generator that handles the tool-calling loop with streaming.
- * Yields events as they arrive from the model:
- * - { type: 'reasoning_delta', content } — thinking chunk (real-time)
- * - { type: 'delta', content }          — response text chunk (real-time)
- * - { type: 'tool_call', name, args }   — tool invocation detected
- * - { type: 'done', content, reasoning_content, toolsCalled } — final answer
+ * Run the tool-calling loop with wikidot + web tools.
  *
- * @param {object} conv        — conversation settings (model, temperature, etc.)
- * @param {array}  messages    — API-formatted messages
- * @param {number} maxIterations — max tool-calling rounds (default 20)
- *
- * Usage:
- *   for await (const event of runToolLoop(conv, messages)) {
- *     switch (event.type) {
- *       case 'reasoning_delta': /* stream thinking *\/
- *       case 'delta':           /* stream content *\/
- *       case 'tool_call':       /* show tool chip *\/
- *       case 'done':            /* finalize *\/
- *     }
- *   }
+ * @param {object} conv         conversation settings
+ * @param {Array<object>} messages  API-formatted message history
+ * @param {number} [maxIterations=20]
+ * @returns {AsyncGenerator}  see {@link runToolLoop} in tool-loop.js
  */
-export async function* runToolLoop(conv, messages, maxIterations = 20) {
-  const openai = createOpenAIClient();
-  const msgs = [...messages];
-  const toolsCalled = [];
-
-  for (let i = 0; i < maxIterations; i++) {
-    const stream = await openai.chat.completions.create({
-      model: conv.model,
-      messages: msgs,
-      tools: TOOL_DEFINITIONS,
-      tool_choice: 'auto',
-      temperature: conv.temperature,
-      max_tokens: conv.max_tokens,
-      top_p: conv.top_p,
-      reasoning_effort: conv.reasoning_effort || 'high',
-      extra_body: { thinking: THINKING_ENABLED },
-      stream: true,
-    });
-
-    let fullContent = '';
-    let fullReasoning = '';
-    const toolCallMap = {}; // index -> { id, name, arguments }
-
-    for await (const chunk of stream) {
-      const delta = chunk.choices?.[0]?.delta;
-      if (!delta) continue;
-
-      if (delta.reasoning_content) {
-        fullReasoning += delta.reasoning_content;
-        yield { type: 'reasoning_delta', content: delta.reasoning_content };
-      }
-
-      if (delta.content) {
-        fullContent += delta.content;
-        yield { type: 'delta', content: delta.content };
-      }
-
-      if (delta.tool_calls) {
-        for (const tc of delta.tool_calls) {
-          const idx = tc.index ?? 0;
-          if (!toolCallMap[idx]) {
-            toolCallMap[idx] = { id: '', name: '', arguments: '' };
-          }
-          if (tc.id) toolCallMap[idx].id = tc.id;
-          if (tc.function?.name) toolCallMap[idx].name = tc.function.name;
-          if (tc.function?.arguments) toolCallMap[idx].arguments += tc.function.arguments;
-        }
-      }
-    }
-
-    const tcList = Object.values(toolCallMap);
-    if (tcList.length > 0) {
-      for (const tc of tcList) toolsCalled.push(tc.name);
-
-      const assistantMsg = {
-        role: 'assistant',
-        content: fullContent || null,
-        tool_calls: tcList.map(tc => ({
-          id: tc.id,
-          type: 'function',
-          function: { name: tc.name, arguments: tc.arguments },
-        })),
-      };
-      msgs.push(assistantMsg);
-
-      for (const tc of tcList) {
-        let args;
-        try { args = JSON.parse(tc.arguments); } catch { args = {}; }
-        yield { type: 'tool_call', name: tc.name, args };
-        const result = await executeTool(tc.name, args);
-        msgs.push({ role: 'tool', tool_call_id: tc.id, content: result });
-      }
-      continue;
-    }
-
-    // Final answer
-    yield {
-      type: 'done',
-      content: fullContent,
-      reasoning_content: fullReasoning || null,
-      toolsCalled: [...toolsCalled],
-    };
-    return;
-  }
-
-  // Loop ended (max iterations reached)
-  yield {
-    type: 'done',
-    content: '',
-    reasoning_content: null,
-    toolsCalled: [...toolsCalled],
-  };
+export function runWikidotToolLoop(conv, messages, maxIterations = 20) {
+  return runToolLoop(conv, messages, {
+    tools: SCP_TOOL_DEFINITIONS,
+    executeTool: executeScpTool,
+    maxIterations,
+  });
 }

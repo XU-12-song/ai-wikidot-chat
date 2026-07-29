@@ -1,4 +1,8 @@
-import db from '../db.js';
+import db from '../pool.js';
+
+export function get(id) {
+  return db.prepare('SELECT * FROM messages m WHERE m.id = ?').get(id);
+}
 
 export function edit(convId, msgId, content, activeBranchId) {
   const msg = db.prepare('SELECT * FROM messages WHERE id = ? AND conversation_id = ?').get(msgId, convId);

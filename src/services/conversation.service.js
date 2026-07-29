@@ -1,4 +1,4 @@
-import db from '../db.js';
+import db from '../pool.js';
 
 export function get(id) {
   return db.prepare('SELECT * FROM conversations WHERE id = ?').get(id);

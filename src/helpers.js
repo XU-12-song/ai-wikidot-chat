@@ -1,4 +1,4 @@
-import db from './db.js';
+import db from './pool.js';
 
 export function getBranchMessages(conversationId, branchId) {
   return db.prepare(`

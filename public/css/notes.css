@@ -1,0 +1,184 @@
+/* ── CSS variable for note accent color ── */
+:root {
+}
+
+/* ── Context menu ── */
+.context-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 140px;
+    padding: 6px 0;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    display: none;
+    animation: ctxMenuIn .12s ease;
+}
+
+.context-menu.show { display: block }
+
+@keyframes ctxMenuIn {
+    from { opacity: 0; transform: scale(.95) }
+    to   { opacity: 1; transform: scale(1) }
+}
+
+.context-menu .ctx-item {
+    display: block;
+    width: 100%;
+    padding: 7px 16px;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: background .12s
+}
+
+.context-menu .ctx-item:hover {
+    background: var(--accent);
+    color: #fff
+}
+
+.context-menu .ctx-sep {
+    height: 1px;
+    margin: 4px 8px;
+    background: var(--border)
+}
+
+/* ── Note card modal ── */
+.note-card-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    background: rgba(0,0,0,.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: noteOverlayIn .2s ease
+}
+
+@keyframes noteOverlayIn {
+    from { opacity: 0 }
+    to   { opacity: 1 }
+}
+
+.note-card-overlay.out {
+    animation: noteOverlayOut .18s ease forwards
+}
+
+@keyframes noteOverlayOut {
+    from { opacity: 1 }
+    to   { opacity: 0 }
+}
+
+.note-card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    width: 520px;
+    max-width: 92vw;
+    max-height: 76vh;
+    display: flex;
+    flex-direction: column;
+    animation: noteCardIn .25s cubic-bezier(.16,1,.3,1);
+    overflow: hidden
+}
+
+.note-card.out {
+    animation: noteCardOut .18s ease forwards
+}
+
+@keyframes noteCardIn {
+    from { opacity: 0; transform: translateY(18px) scale(.96) }
+    to   { opacity: 1; transform: translateY(0) scale(1) }
+}
+
+@keyframes noteCardOut {
+    from { opacity: 1; transform: translateY(0) scale(1) }
+    to   { opacity: 0; transform: translateY(12px) scale(.97) }
+}
+
+.note-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px 0;
+    flex-shrink: 0
+}
+
+.note-card-head .note-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--note-accent)
+}
+
+.note-card-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg3);
+    border: none;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s
+}
+
+.note-card-close:hover {
+    background: #d44;
+    color: #fff
+}
+
+.note-card-selected {
+    margin: 10px 18px 0;
+    padding: 10px 14px;
+    background: var(--bg2);
+    border-left: 3px solid var(--note-accent);
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    color: var(--muted);
+    font-style: italic;
+    flex-shrink: 0
+}
+
+.note-card-body {
+    padding: 14px 18px 18px;
+    overflow-y: auto;
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.7
+}
+
+.note-card-body .streaming-cursor {
+    display: inline-block;
+    width: 6px;
+    height: 14px;
+    background: var(--note-accent);
+    margin-left: 2px;
+    animation: blink .6s infinite;
+    vertical-align: text-bottom
+}
+
+.note-card-body p { margin: 4px 0 }
+
+/* ── Note annotation in messages ── */
+.note-annotation {
+    cursor: pointer;
+    background-image: linear-gradient(to top, var(--note-accent), var(--note-accent));
+    background-size: 100% 3px;
+    background-position: bottom;
+    background-repeat: no-repeat;
+    border-radius: 2px;
+    transition: background-size .25s ease, color .25s ease
+}
+
+.note-annotation:hover {
+    background-size: 100% 100%;
+    color: var(--bg0)
+}

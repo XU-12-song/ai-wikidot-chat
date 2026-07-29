@@ -49,13 +49,49 @@ function bindEvents() {
     $('#userInput').addEventListener('input', autoResize);
     $('#sTemp').addEventListener('input', (e) => $('#tLabel').textContent = e.target.value);
     $('#sTopP').addEventListener('input', (e) => $('#pLabel').textContent = e.target.value);
-    $('#themeBox').addEventListener('click', turnTheme)
+    $('#themeBox').addEventListener('click', turnTheme);
+    $('#msgContainer').addEventListener('contextmenu', onContextMenu);
+
+    // context menu registration
+    ctxMenu.register('selection', [
+        { label: '添加笔记', action: addNoteFromSelection }
+    ]);
+    ctxMenu.register('default', [
+        { label: 'Copy', action: () => document.execCommand('copy') }
+    ]);
 }
 
 function autoResize(e) {
     const t = e.target;
     t.style.height = 'auto';
     t.style.height = Math.min(t.scrollHeight, 180) + 'px';
+}
+
+// ── Context menu + notes ──
+
+function onContextMenu(e) {
+    e.preventDefault();
+    const bubble = getSelectionBubble();
+    if (bubble) {
+        const msgWrap = bubble.closest('.msg-wrap');
+        const msgId = msgWrap ? Number(msgWrap.id.replace('r-', '')) : null;
+        const msg = S.msgs.find(m => m.id === msgId);
+        if (msg && msg.role !== 'system') {
+            const note = getSelectionNote(bubble, msg.content);
+            if (note) {
+                ctxMenu.show(e.clientX, e.clientY, 'selection', { msg, note });
+                return;
+            }
+        }
+    }
+    ctxMenu.show(e.clientX, e.clientY, 'default', {});
+}
+
+async function addNoteFromSelection(data) {
+    const { msg, note } = data;
+    await showNoteCard(msg, note.start_from, note.length, note.note);
+    await reloadMsgs();
+    renderMsgs();
 }
 
 function setEditTriggersDisabled(disabled) {
@@ -264,6 +300,7 @@ function renderMsgs() {
         });
     });
 
+    renderNoteAnnotations(S.msgs);
     c.scrollTop = c.scrollHeight;
 }
 

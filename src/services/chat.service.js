@@ -1,4 +1,4 @@
-import db from '../db.js';
+import db from '../pool.js';
 import { getBranchMessages, buildApiMessages } from '../helpers.js';
 import { SCP_SYSTEM_PROMPT } from '../tools/index.js';
 

@@ -1,4 +1,4 @@
-import db from '../db.js';
+import db from '../pool.js';
 import { getBranchMessages } from '../helpers.js';
 
 export function list(convId) {

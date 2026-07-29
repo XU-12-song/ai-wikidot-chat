@@ -1,9 +1,12 @@
 import { DatabaseSync } from 'node:sqlite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import db from './pool';
+import db from './pool.js';
 
-db.exec(`
+
+export function init() {
+
+  db.exec(`
   CREATE TABLE IF NOT EXISTS conversations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT DEFAULT 'New Chat',
@@ -17,9 +20,9 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now'))
   )
 `);
-try { db.exec(`ALTER TABLE conversations ADD COLUMN reasoning_effort TEXT DEFAULT 'high'`); } catch { }
+  try { db.exec(`ALTER TABLE conversations ADD COLUMN reasoning_effort TEXT DEFAULT 'high'`); } catch { }
 
-db.exec(`
+  db.exec(`
   CREATE TABLE IF NOT EXISTS branches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id INTEGER NOT NULL,
@@ -31,7 +34,7 @@ db.exec(`
   )
 `);
 
-db.exec(`
+  db.exec(`
   CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id INTEGER NOT NULL,
@@ -44,7 +47,7 @@ db.exec(`
   )
 `);
 
-db.exec(`
+  db.exec(`
   CREATE TABLE IF NOT EXISTS notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     message_id INTEGER NOT NULL,
@@ -57,5 +60,6 @@ db.exec(`
   )
 `)
 
-try { db.exec(`ALTER TABLE messages ADD COLUMN reasoning_content TEXT DEFAULT NULL`); } catch { }
-try { db.exec(`ALTER TABLE messages ADD COLUMN tool_calls TEXT DEFAULT NULL`); } catch { }
+  try { db.exec(`ALTER TABLE messages ADD COLUMN reasoning_content TEXT DEFAULT NULL`); } catch { }
+  try { db.exec(`ALTER TABLE messages ADD COLUMN tool_calls TEXT DEFAULT NULL`); } catch { }
+}

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as convService from '../services/conversation.service.js';
 import * as chatService from '../services/chat.service.js';
-import { runToolLoop } from '../tools/index.js';
+import { runWikidotToolLoop } from '../tools/index.js';
 
 const router = Router();
 
@@ -39,7 +39,7 @@ router.post('/:id/chat', async (req, res) => {
 
     let fullContent = '', fullReasoning = '', toolsCalled = [];
 
-    for await (const event of runToolLoop(conv, apiMessages)) {
+    for await (const event of runWikidotToolLoop(conv, apiMessages)) {
       if (event.type === 'reasoning_delta') {
         fullReasoning += event.content;
         sendSSE(res, { reasoning_delta: event.content });
@@ -63,7 +63,7 @@ router.post('/:id/chat', async (req, res) => {
     res.end();
   } catch (e) {
     if (!res.headersSent) res.status(500).json({ error: e.message });
-    else { try { sendSSE(res, { error: e.message }); res.end(); } catch {} }
+    else { try { sendSSE(res, { error: e.message }); res.end(); } catch { } }
   }
 });
 
@@ -81,7 +81,7 @@ router.post('/:id/chat-sync', async (req, res) => {
     const apiMessages = chatService.getApiMessages(conv, branchId);
 
     let fullContent = '', fullReasoning = null, toolsCalled = [];
-    for await (const event of runToolLoop(conv, apiMessages)) {
+    for await (const event of runWikidotToolLoop(conv, apiMessages)) {
       if (event.type === 'done') {
         fullContent = event.content;
         fullReasoning = event.reasoning_content;

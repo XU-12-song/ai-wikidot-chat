@@ -15,6 +15,7 @@ html{
     --user-bg: #ffeada;
     --ai-bg: transparent;
     --border: #e3dfd6;
+    --note-accent: #e8a040;
     --radius: 12px;
     --gap: 16px;
 }
@@ -30,6 +31,7 @@ html.dark-mode {
     --user-bg: #2d343a;
     --ai-bg: transparent;
     --border: #2e2e30;
+    --note-accent: #40bbe8;
     --radius: 12px;
     --gap: 16px;
 }

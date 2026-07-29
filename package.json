@@ -4,7 +4,7 @@
   "description": "DeepSeek chat with branching",
   "main": "server.js",
   "scripts": {
-    "start": "node --env-file=.env server.js",
+    "start": "node --env-file=.env index.js",
     "dev": "node --watch --env-file=.env server.js",
     "cleanup": "node scripts/cleanup-wal.js",
     "wikidot-sync": "node scripts/wikidot-sync",
