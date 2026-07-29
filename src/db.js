@@ -62,4 +62,5 @@ export function init() {
 
   try { db.exec(`ALTER TABLE messages ADD COLUMN reasoning_content TEXT DEFAULT NULL`); } catch { }
   try { db.exec(`ALTER TABLE messages ADD COLUMN tool_calls TEXT DEFAULT NULL`); } catch { }
+  try { db.exec(`ALTER TABLE notes ADD COLUMN form TEXT DEFAULT 'note'`); } catch { }
 }

@@ -148,7 +148,7 @@
 }
 
 .note-card-body {
-    padding: 14px 18px 18px;
+    padding: 18px 24px 24px;
     overflow-y: auto;
     flex: 1;
     font-size: 14px;
@@ -268,4 +268,101 @@
 .note-annotation:hover {
     background-size: 100% 100%;
     color: var(--bg0)
+}
+
+/* ── Analysis bar (single continuous bar per analysis) ── */
+.analysis-bar {
+    position: absolute;
+    left: -22px;
+    width: 22px;
+    background: linear-gradient(to right,
+        transparent 0, transparent 18px,
+        var(--analysis-accent) 18px);
+    border-radius: 2px;
+    opacity: .6;
+    cursor: pointer;
+    transition: opacity .2s;
+    pointer-events: auto;
+    z-index: 1;
+}
+.analysis-bar:hover {
+    opacity: 1;
+}
+
+/* ── Element selection mode (for analysis Mode B) ── */
+.element-select-mode .bubble-body > p,
+.element-select-mode .bubble-body > ul,
+.element-select-mode .bubble-body > ol,
+.element-select-mode .bubble-body > blockquote,
+.element-select-mode .bubble-body > pre,
+.element-select-mode .bubble-body > figure,
+.element-select-mode .bubble-body > table,
+.element-select-mode .bubble-body > h1,
+.element-select-mode .bubble-body > h2,
+.element-select-mode .bubble-body > h3,
+.element-select-mode .bubble-body > h4 {
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin: 2px 0;
+    transition: border-color .15s, background .15s;
+}
+.element-select-mode .bubble-body > *.analysis-selected {
+    border-color: var(--analysis-accent);
+    background: color-mix(in srgb, var(--analysis-accent) 8%, transparent);
+}
+.element-select-mode .bubble-body > *:not(.analysis-selected):hover {
+    border-color: color-mix(in srgb, var(--analysis-accent) 30%, transparent);
+    background: color-mix(in srgb, var(--analysis-accent) 4%, transparent);
+}
+
+/* ── Floating action bar ── */
+.analysis-action-bar {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1200;
+    display: flex;
+    gap: 12px;
+    padding: 10px 20px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.18);
+    animation: ctxMenuIn .15s ease;
+}
+.analysis-action-bar .btn-confirm {
+    padding: 8px 22px;
+    background: var(--analysis-accent);
+    color: #fff;
+    border-radius: 20px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+}
+.analysis-action-bar .btn-cancel {
+    padding: 8px 22px;
+    background: var(--bg3);
+    color: var(--muted);
+    border-radius: 20px;
+    border: none;
+    cursor: pointer;
+}
+.analysis-action-bar .hint {
+    font-size: 11px;
+    color: var(--muted);
+    align-self: center;
+}
+
+/* ── Analysis card accent override ── */
+.note-card.analysis-card .note-card-title {
+    color: var(--analysis-accent);
+}
+.note-card.analysis-card .note-card-selected {
+    border-left-color: var(--analysis-accent);
+}
+.note-card.analysis-card .note-card-body .streaming-cursor {
+    background: var(--analysis-accent);
 }

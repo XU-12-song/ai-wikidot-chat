@@ -8,15 +8,16 @@ export async function get(id) {
     `).get(id);
 }
 
-export async function insert(message_id, length, start_from, note, content, reasoning_content) {
-    const insert = db.prepare(`INSERT INTO notes (message_id,length,start_from,note,content,reasoning_content) VALUES (?,?,?,?,?,?)`)
+export async function insert(message_id, length, start_from, note, content, reasoning_content, form = 'note') {
+    const insert = db.prepare(`INSERT INTO notes (message_id,length,start_from,note,content,reasoning_content,form) VALUES (?,?,?,?,?,?,?)`)
         .run(
             message_id,
             length,
             start_from,
             note,
             content,
-            reasoning_content || null
+            reasoning_content || null,
+            form
         );
     const noteId = Number(insert.lastInsertRowid);
     return get(noteId);

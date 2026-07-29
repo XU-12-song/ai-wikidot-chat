@@ -85,7 +85,8 @@
 }
 
 .msg-bubble .bubble-body {
-    display: block
+    display: block;
+    position: relative
 }
 
 .msg-bubble .edit-form {

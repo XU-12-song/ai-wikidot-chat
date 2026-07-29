@@ -28,15 +28,20 @@ let S = {
     }
     bindEvents();
 })();
-const ranges = document.querySelectorAll('input[type=range]');
-function updateProgress() {
-    const percent = (this.value - this.min) / (this.max - this.min) * 100;
-    this.style.setProperty('--range-progress', percent + '%');
+
+function initRange() {
+    const ranges = document.querySelectorAll('input[type=range]');
+    function updateProgress() {
+        const percent = (this.value - this.min) / (this.max - this.min) * 100;
+        this.style.setProperty('--range-progress', percent + '%');
+    }
+    ranges.forEach(function (item) {
+        item.addEventListener('input', updateProgress);
+        updateProgress.call(item);
+    });
+    return;
 }
-ranges.forEach(function (item) {
-    item.addEventListener('input', updateProgress);
-    updateProgress.call(item);
-});
+initRange();
 // 初始化一次
 
 function bindEvents() {
@@ -54,10 +59,12 @@ function bindEvents() {
 
     // context menu registration
     ctxMenu.register('selection', [
-        { label: '添加笔记', action: addNoteFromSelection }
+        { label: '添加笔记', action: addNoteFromSelection },
+        { label: '解析', action: addAnalysisFromSelection }
     ]);
     ctxMenu.register('default', [
-        { label: 'Copy', action: () => document.execCommand('copy') }
+        { label: 'Copy', action: () => document.execCommand('copy') },
+        { label: '解析', action: enterAnalysisMode }
     ]);
 }
 
@@ -84,11 +91,21 @@ function onContextMenu(e) {
             }
         }
     }
-    ctxMenu.show(e.clientX, e.clientY, 'default', {});
+    // fallback: pass message info to default context for Mode B
+    const msgWrap = e.target.closest('.msg-wrap');
+    const msgId = msgWrap ? Number(msgWrap.id.replace('r-', '')) : null;
+    const msg = msgId ? S.msgs.find(m => m.id === msgId) : null;
+    ctxMenu.show(e.clientX, e.clientY, 'default', { msg, msgWrap });
 }
 
 async function addNoteFromSelection(data) {
     const { msg, note } = data;
+    // reject cross-element selections for notes
+    const bubble = getSelectionBubble();
+    if (bubble && isCrossElementSelection(bubble)) {
+        toast('笔记不支持跨元素选择，请使用"解析"功能');
+        return;
+    }
     await showNoteCard(msg, note.start_from, note.length, note.note);
     await reloadMsgs();
     renderMsgs();
@@ -300,6 +317,7 @@ function renderMsgs() {
         });
     });
 
+    renderAnalysisMarkers(S.msgs);
     renderNoteAnnotations(S.msgs);
     c.scrollTop = c.scrollHeight;
 }
@@ -580,6 +598,7 @@ function updateUI() {
     $('#inputBar').style.display = v ? 'flex' : 'none';
     $('#settings').style.display = v ? 'flex' : 'none';
     if (v) updateMeta();
+    initRange();
 }
 
 function updateMeta() {

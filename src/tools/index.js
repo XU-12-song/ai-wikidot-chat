@@ -15,7 +15,7 @@ dotenv.config({ path: resolve(__dirname, '../..', '.env') });
 
 const siteName = process.env.SITE_NAME;
 
-export const SCP_SYSTEM_PROMPT = `
+export const WIKIDOT_SYSTEM_PROMPT = `
 ## ${siteName} 维基知识库工具
 
 你可以查询 ${siteName} 维基数据库。以下是可用的函数工具：
@@ -40,7 +40,7 @@ export const SCP_SYSTEM_PROMPT = `
 
 // ─── Tool definitions ─────────────────────────────────────────────────────────
 
-export const SCP_TOOL_DEFINITIONS = [...WEB_TOOL_DEFINITIONS, ...WIKIDOT_TOOL_DEFINITIONS];
+export const CHAT_TOOL_DEFINITIONS = [...WEB_TOOL_DEFINITIONS, ...WIKIDOT_TOOL_DEFINITIONS];
 
 // ─── Tool executor ────────────────────────────────────────────────────────────
 
@@ -68,7 +68,7 @@ const executeScpTool = createToolExecutor(toolMap);
  */
 export function runWikidotToolLoop(conv, messages, maxIterations = 20) {
   return runToolLoop(conv, messages, {
-    tools: SCP_TOOL_DEFINITIONS,
+    tools: CHAT_TOOL_DEFINITIONS,
     executeTool: executeScpTool,
     maxIterations,
   });

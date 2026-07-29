@@ -2,7 +2,7 @@ import { Router } from "express";
 import * as convService from "../services/conversation.service.js";
 import * as messageService from "../services/message.service.js";
 import * as noteService from "../services/note.service.js";
-import { runNoteToolLoop, NOTE_SYSTEM_PROMPT } from "../tools/note/index.js";
+import { runNoteToolLoop, NOTE_SYSTEM_PROMPT, ANALYSIS_SYSTEM_PROMPT } from "../tools/note/index.js";
 
 const router = Router();
 
@@ -39,7 +39,7 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { message_id, start_from, length, note } = req.body;
+    const { message_id, start_from, length, note, form = 'note' } = req.body;
 
     const msg = messageService.get(message_id);
     if (!msg) return res.status(404).json({ error: 'Message not found' });
@@ -48,10 +48,11 @@ router.post('/', async (req, res) => {
     if (!conv) return res.status(404).json({ error: 'Conversation not found' });
 
     // insert note skeleton (content generated below)
-    const newNote = await noteService.insert(message_id, length, start_from, note, null, null);
+    const newNote = await noteService.insert(message_id, length, start_from, note, null, null, form);
 
+    const systemPrompt = form === 'analysis' ? ANALYSIS_SYSTEM_PROMPT : NOTE_SYSTEM_PROMPT;
     const messages = [
-      { role: 'system', content: NOTE_SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt + `\n\n## 上下文\n当前用户选中的文本所在消息 ID 为 ${message_id}。如需获取该消息的完整上下文，请调用 getContent 工具并传入此 ID。` },
       { role: 'user', content: note },
     ];
 

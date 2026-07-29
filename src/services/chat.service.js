@@ -1,6 +1,6 @@
 import db from '../pool.js';
 import { getBranchMessages, buildApiMessages } from '../helpers.js';
-import { SCP_SYSTEM_PROMPT } from '../tools/index.js';
+import { WIKIDOT_SYSTEM_PROMPT } from '../tools/index.js';
 
 export function insertUserMessage(convId, branchId, content) {
   db.prepare('INSERT INTO messages (conversation_id, branch_id, role, content) VALUES (?,?,?,?)')
@@ -17,7 +17,7 @@ export function insertUserMessage(convId, branchId, content) {
 export function getApiMessages(conv, branchId) {
   const msgs = buildApiMessages(conv, branchId);
   if (msgs.length > 0 && msgs[0].role === 'system') {
-    msgs[0].content += SCP_SYSTEM_PROMPT;
+    msgs[0].content += WIKIDOT_SYSTEM_PROMPT;
   }
   return msgs;
 }
