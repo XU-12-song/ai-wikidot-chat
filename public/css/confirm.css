@@ -34,14 +34,12 @@
     word-break: break-word;
 }
 .confirm-buttons {
-    display: flex;
-    justify-content: center;
     gap: 16px;
 }
 .confirm-btn {
-    padding: 10px 28px;
-    border: none;
+    margin: 0 5px 0 5px;
     border-radius: 6px;
+    border: none;
     font-size: 15px;
     cursor: pointer;
     transition: background 0.2s, transform 0.1s;
@@ -49,12 +47,15 @@
 }
 .confirm-btn:active { transform: scale(0.97); }
 .confirm-btn.cancel {
-    background: transparent;
-    border: 1px solid #b0c1d4;
+    /* border: 1px solid var(--border); */
+    color: var(--accent);
+    background: var(--bg1);
+    padding: 11px 28px;
 }
 .confirm-btn.cancel:hover,
 .confirm-btn.confirm:hover { opacity: .9; }
 .confirm-btn.confirm {
+    padding: 10.5px 28px 10.5px 28px;
     background: var(--accent);
     color: #fff;
 }

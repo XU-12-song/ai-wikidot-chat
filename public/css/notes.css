@@ -167,6 +167,93 @@
 
 .note-card-body p { margin: 4px 0 }
 
+/* ── Note tool chips ── */
+.note-tool-calls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 0 18px;
+    padding: 8px 0 0;
+    flex-shrink: 0
+}
+
+.note-tool-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: color-mix(in srgb, var(--note-accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--note-accent) 30%, transparent);
+    border-radius: 12px;
+    font-size: 11px;
+    color: var(--note-accent)
+}
+
+.note-tool-chip .ntc-icon {
+    display: flex;
+    align-items: center
+}
+
+.note-tool-chip .ntc-icon svg {
+    width: 12px;
+    height: 12px
+}
+
+/* ── Note reasoning ── */
+.note-reasoning-wrap {
+    border-left: 3px solid var(--note-accent);
+    margin: 8px 18px 0;
+    border-radius: 0 8px 8px 0;
+    overflow: hidden;
+    flex-shrink: 0
+}
+
+.note-reasoning-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--bg2);
+    color: var(--note-accent);
+    font-size: 11px;
+    cursor: pointer;
+    user-select: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    transition: background .15s
+}
+
+.note-reasoning-toggle:hover {
+    background: var(--bg3)
+}
+
+.note-reasoning-toggle .arrow {
+    transition: transform .2s;
+    font-size: 10px
+}
+
+.note-reasoning-toggle.open .arrow {
+    transform: rotate(90deg)
+}
+
+.note-reasoning-body {
+    display: none;
+    padding: 8px 12px;
+    background: var(--bg1);
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    max-height: 160px;
+    overflow-y: auto
+}
+
+.note-reasoning-body.open {
+    display: block
+}
+
 /* ── Note annotation in messages ── */
 .note-annotation {
     cursor: pointer;

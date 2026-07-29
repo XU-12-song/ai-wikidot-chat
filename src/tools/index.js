@@ -48,7 +48,7 @@ const MAX_SOURCE_LEN = 500000;
 
 const toolMap = {
   searchPages: (args) => searchPages(args),
-  getPageContent: async (args) => await getPageContent(args, MAX_SOURCE_LEN),
+  getPageContent: async (args) => await getPageContent(args.name, MAX_SOURCE_LEN),
   getChildPages: (args) => getChildPages(args.parentName, args.order || 'name', args.limit || -1),
   webSearch: async (args) => await webSearch(args.query),
   webFetch: async (args) => await webFetch(args.url),

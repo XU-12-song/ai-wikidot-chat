@@ -55,6 +55,7 @@
 .msg-bubble .role-tag {
     font-size: 10px;
     margin-bottom: 5px;
+    margin-right: 44px;
     text-transform: uppercase;
     letter-spacing: .8px;
     opacity: .5;
@@ -63,8 +64,8 @@
 
 .msg-bubble .edit-trigger {
     position: absolute;
-    top: -20px;
-    right: 6px;
+    top: 6px;
+    right: 8px;
     background: var(--bg3);
     color: var(--muted);
     opacity: 0;
@@ -229,11 +230,11 @@
     align-items: center;
     gap: 4px;
     padding: 2px 8px;
-    background: rgba(126, 184, 255, 0.08);
-    border: 1px solid rgba(126, 184, 255, 0.25);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
     border-radius: 12px;
     font-size: 11px;
-    color: #7eb8ff
+    color: var(--accent)
 }
 
 .tool-chip .tc-icon {
@@ -244,7 +245,7 @@
 .tool-chip .tc-icon svg {
     width: 12px;
     height: 12px;
-    stroke: #7eb8ff
+    color: var(--accent)
 }
 
 /* Reasoning */
@@ -359,7 +360,6 @@
     font-size: 1.1em;
     font-weight: 600;
     margin: 8px 0 4px;
-    color: #fff
 }
 .bubble-body h2 { font-size: 1.05em }
 .bubble-body h3 { font-size: 1em }

@@ -20,6 +20,11 @@ async function showNoteCard(msg, startFrom, length, noteText) {
             <button class="note-card-close">&times;</button>
         </div>
         <div class="note-card-selected">"${esc(noteText.slice(0, 80))}${noteText.length > 80 ? '...' : ''}"</div>
+        <div id="note-tc" class="note-tool-calls" style="display:none"></div>
+        <div id="note-reasoning-wrap" class="note-reasoning-wrap" style="display:none">
+            <button class="note-reasoning-toggle open"><span class="arrow">&#9654;</span> Thinking...</button>
+            <div class="note-reasoning-body open" id="note-reasoning"></div>
+        </div>
         <div class="note-card-body"><span class="streaming-cursor"></span></div>
     `;
     overlay.appendChild(card);
@@ -27,6 +32,15 @@ async function showNoteCard(msg, startFrom, length, noteText) {
 
     const body = card.querySelector('.note-card-body');
     const close = card.querySelector('.note-card-close');
+    const tc = card.querySelector('#note-tc');
+    const rw = card.querySelector('#note-reasoning-wrap');
+    const rb = card.querySelector('#note-reasoning');
+
+    // reasoning toggle
+    card.querySelector('.note-reasoning-toggle').addEventListener('click', function () {
+        this.classList.toggle('open');
+        rb.classList.toggle('open');
+    });
 
     // close handlers
     const remove = () => {
@@ -56,7 +70,7 @@ async function showNoteCard(msg, startFrom, length, noteText) {
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        let buf = '', aiContent = '';
+        let buf = '', aiContent = '', hasReasoning = false, hasTool = false;
 
         while (true) {
             const { done, value } = await reader.read();
@@ -69,12 +83,26 @@ async function showNoteCard(msg, startFrom, length, noteText) {
                 try {
                     const d = JSON.parse(line.slice(6));
                     if (d.error) throw new Error(d.error);
+                    if (d.tool_call) {
+                        hasTool = true;
+                        tc.style.display = 'flex';
+                        const chip = document.createElement('span');
+                        chip.className = 'note-tool-chip';
+                        chip.innerHTML = `<span class="ntc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span class="ntc-name">${esc(d.tool_call.name)}</span>`;
+                        tc.appendChild(chip);
+                    }
+                    if (d.reasoning_delta) {
+                        hasReasoning = true;
+                        rw.style.display = 'block';
+                        rb.textContent += d.reasoning_delta;
+                    }
                     if (d.delta) {
                         aiContent += d.delta;
                         body.innerHTML = md(aiContent) + '<span class="streaming-cursor"></span>';
                     }
                     if (d.done) {
                         body.innerHTML = md(aiContent);
+                        if (!hasReasoning) rw.style.display = 'none';
                     }
                 } catch (e) { throw e; }
             }
@@ -135,16 +163,34 @@ function _showExistingNote(note) {
     overlay.className = 'note-card-overlay';
     const card = document.createElement('div');
     card.className = 'note-card';
+    let reasoningHtml = '';
+    if (note.reasoning_content) {
+        reasoningHtml = `<div class="note-reasoning-wrap" style="display:block">
+            <button class="note-reasoning-toggle"><span class="arrow">&#9654;</span> Thinking...</button>
+            <div class="note-reasoning-body">${esc(note.reasoning_content)}</div>
+        </div>`;
+    }
     card.innerHTML = `
         <div class="note-card-head">
             <span class="note-card-title">笔记</span>
             <button class="note-card-close">&times;</button>
         </div>
         <div class="note-card-selected">"${esc((note.note || '').slice(0, 80))}"</div>
+        ${reasoningHtml}
         <div class="note-card-body">${md(note.content || '')}</div>
     `;
     overlay.appendChild(card);
     document.body.appendChild(overlay);
+
+    // reasoning toggle
+    const toggle = card.querySelector('.note-reasoning-toggle');
+    const body = card.querySelector('.note-reasoning-body');
+    if (toggle && body) {
+        toggle.addEventListener('click', () => {
+            toggle.classList.toggle('open');
+            body.classList.toggle('open');
+        });
+    }
 
     const remove = () => {
         overlay.classList.add('out');
