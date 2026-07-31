@@ -1,7 +1,8 @@
 // ── Shared constants ─────────────────────────────────────────────────────────
 
 // marked.js wraps tables in <figure>, so include FIGURE for table detection
-const BLOCK_TAGS = new Set(['P','UL','OL','BLOCKQUOTE','PRE','TABLE','FIGURE','H1','H2','H3','H4']);
+const BLOCK_TAGS = new Set(['P', 'UL', 'OL', 'BLOCKQUOTE', 'PRE', 'TABLE', 'FIGURE', 'H1', 'H2', 'H3', 'H4']);
+console.log("SS");
 
 function getBlockParent(node, bubbleEl) {
     while (node && node !== bubbleEl) {
@@ -303,35 +304,31 @@ function _getOffsetTop(child, ancestor) {
 function renderAnalysisMarkers(msgs) {
     // clean up old bars
     document.querySelectorAll('.analysis-bar').forEach(b => b.remove());
-    // ensure bubble-body has positioning context
-    document.querySelectorAll('.bubble-body').forEach(b => { b.style.position = 'relative'; });
 
     msgs.forEach(m => {
         const analysisNotes = (m.notes || []).filter(n => n.form === 'analysis');
         if (!analysisNotes.length) return;
         const wrap = document.getElementById('r-' + m.id);
         if (!wrap) return;
+        const msgBubble = wrap.querySelector('.msg-bubble');
+        if (!msgBubble) return;
         const bubble = wrap.querySelector('.bubble-body');
         if (!bubble) return;
 
         const blocks = _getDirectBlocks(bubble);
-        // if no direct block children, treat the bubble itself as one block
         const targets = blocks.length ? blocks : [bubble];
 
         analysisNotes.forEach(note => {
             if (!note.note) return;
             const noteText = note.note.replace(/\s+/g, ' ').trim();
 
-            // find all blocks whose text overlaps with this note
             const matched = [];
             for (const block of targets) {
                 const text = (block.textContent || '').replace(/\s+/g, ' ').trim();
                 if (!text) continue;
-                // bidirectional fuzzy match
                 if (text.includes(noteText) || noteText.includes(text)) {
                     matched.push(block);
                 } else if (noteText.length > 20) {
-                    // try partial: check if significant portions overlap
                     const chunks = noteText.split('\n\n');
                     for (const chunk of chunks) {
                         const c = chunk.trim();
@@ -344,10 +341,10 @@ function renderAnalysisMarkers(msgs) {
             }
             if (!matched.length) return;
 
-            // create a SINGLE continuous bar via offsetTop
-            const firstTop = _getOffsetTop(matched[0], bubble);
+            // position bar relative to msg-bubble (which has position: relative)
+            const firstTop = _getOffsetTop(matched[0], msgBubble);
             const last = matched[matched.length - 1];
-            const lastBottom = _getOffsetTop(last, bubble) + last.offsetHeight;
+            const lastBottom = _getOffsetTop(last, msgBubble) + last.offsetHeight;
 
             const bar = document.createElement('div');
             bar.className = 'analysis-bar';
@@ -355,9 +352,9 @@ function renderAnalysisMarkers(msgs) {
             bar.style.height = (lastBottom - firstTop) + 'px';
             bar.dataset.analysisId = note.id;
 
-            bubble.appendChild(bar);
+            // append to msg-bubble so it sits above content in z-order
+            msgBubble.appendChild(bar);
 
-            // remove note annotation underlines inside matched blocks
             matched.forEach(block => {
                 block.querySelectorAll('.note-annotation').forEach(el => {
                     el.replaceWith(document.createTextNode(el.textContent));
@@ -372,13 +369,14 @@ function renderAnalysisMarkers(msgs) {
         bar._analysisBound = true;
         bar.addEventListener('click', async (e) => {
             e.stopPropagation();
+            e.preventDefault();
             const noteId = Number(bar.dataset.analysisId);
-            if (!noteId) return;
+            if (!noteId) { console.warn('analysis-bar: no noteId'); return; }
             try {
                 const note = await api('/notes/' + noteId);
-                if (!note) return;
+                if (!note) { console.warn('analysis-bar: note not found', noteId); return; }
                 _showExistingAnalysis(note);
-            } catch {}
+            } catch (e) { console.error('analysis-bar click error:', e); }
         });
     });
 }

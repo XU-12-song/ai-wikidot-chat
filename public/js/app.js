@@ -139,6 +139,9 @@ function renderConvs() {
             delConv(Number(card.dataset.id));
         });
     });
+    $$('.conv-card').forEach(el => {
+        el.title = `对话id: ${el.dataset.id}`;
+    });
 }
 
 async function newConv() {

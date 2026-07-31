@@ -6,7 +6,7 @@ import { WEB_TOOL_DEFINITIONS, webSearch, webFetch } from '../web.tool.js';
 import { WIKIDOT_TOOL_DEFINITIONS } from '../wikidot.tool.js';
 import { WIKIDOT_SYSTEM_PROMPT } from '../index.js';
 import { searchPages, getChildPages, getPageContent } from '../wikidot.tool.js';
-import { getContent } from './content.js';
+import { getContent, GET_CONTENT_DEFINITION } from '../content.js';
 import { createToolExecutor, runToolLoop } from '../tool-loop.js';
 
 
@@ -23,20 +23,7 @@ const siteName = process.env.SITE_NAME;
 export const NOTE_TOOL_DEFINITIONS = [
     ...WEB_TOOL_DEFINITIONS,
     ...WIKIDOT_TOOL_DEFINITIONS,
-    {
-        type: 'function',
-        function: {
-            name: 'getContent',
-            description: '获取当前消息的上下文内容',
-            parameters: {
-                type: 'object',
-                properties: {
-                    id: { type: 'integer', description: '消息 ID' },
-                },
-                required: ['id'],
-            },
-        },
-    },
+    GET_CONTENT_DEFINITION
 ];
 
 // ─── Note tool executor ───────────────────────────────────────────────────────
