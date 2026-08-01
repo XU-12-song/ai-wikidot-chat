@@ -95,37 +95,37 @@ npm run dev     # 开发模式（文件变更自动重启）
 
 ### 会话
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/conversations` | 会话列表 |
-| `POST` | `/api/conversations` | 创建会话 |
-| `GET` | `/api/conversations/:id` | 会话详情（含消息和笔记） |
-| `DELETE` | `/api/conversations/:id` | 删除会话 |
-| `PUT` | `/api/conversations/:id/settings` | 更新模型参数 |
+| 方法     | 路径                              | 说明                     |
+| -------- | --------------------------------- | ------------------------ |
+| `GET`    | `/api/conversations`              | 会话列表                 |
+| `POST`   | `/api/conversations`              | 创建会话                 |
+| `GET`    | `/api/conversations/:id`          | 会话详情（含消息和笔记） |
+| `DELETE` | `/api/conversations/:id`          | 删除会话                 |
+| `PUT`    | `/api/conversations/:id/settings` | 更新模型参数             |
 
 ### 聊天
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `POST` | `/api/conversations/:id/chat` | 流式聊天（SSE） |
-| `POST` | `/api/conversations/:id/chat-sync` | 同步聊天 |
-| `POST` | `/api/conversations/:id/regenerate` | 重新生成最后一条 AI 回复（SSE） |
-| `PUT` | `/api/conversations/:id/messages/:msgId` | 编辑消息（自动创建新分支） |
+| 方法   | 路径                                     | 说明                            |
+| ------ | ---------------------------------------- | ------------------------------- |
+| `POST` | `/api/conversations/:id/chat`            | 流式聊天（SSE）                 |
+| `POST` | `/api/conversations/:id/chat-sync`       | 同步聊天                        |
+| `POST` | `/api/conversations/:id/regenerate`      | 重新生成最后一条 AI 回复（SSE） |
+| `PUT`  | `/api/conversations/:id/messages/:msgId` | 编辑消息（自动创建新分支）      |
 
 ### 分支
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/conversations/:id/branches` | 分支列表 |
-| `POST` | `/api/conversations/:id/branches` | 创建分支（fork） |
-| `PUT` | `/api/conversations/:id/branches/switch` | 切换活跃分支 |
+| 方法   | 路径                                     | 说明             |
+| ------ | ---------------------------------------- | ---------------- |
+| `GET`  | `/api/conversations/:id/branches`        | 分支列表         |
+| `POST` | `/api/conversations/:id/branches`        | 创建分支（fork） |
+| `PUT`  | `/api/conversations/:id/branches/switch` | 切换活跃分支     |
 
 ### 笔记 / 解析
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/notes/:id` | 获取笔记详情 |
-| `POST` | `/api/notes` | 创建笔记或解析（`form: 'note'` | `'analysis'`），SSE 流式返回 AI 生成内容 |
+| 方法   | 路径             | 说明                           |
+| ------ | ---------------- | ------------------------------ | ---------------------------------------- |
+| `GET`  | `/api/notes/:id` | 获取笔记详情                   |
+| `POST` | `/api/notes`     | 创建笔记或解析（`form: 'note'` | `'analysis'`），SSE 流式返回 AI 生成内容 |
 
 ## 技术栈
 
@@ -134,6 +134,8 @@ npm run dev     # 开发模式（文件变更自动重启）
 - **数据库**: node:sqlite（DatabaseSync）
 - **AI**: DeepSeek-V4 API（OpenAI 兼容，支持 reasoning + function calling）
 - **前端**: 原生 JS + CSS（零构建工具，CDN 加载 marked）
+
+key: 6GcKM710fmtErqPyUZi04QQgH6jQyW5kLonzpD4W
 
 ## 许可
 
