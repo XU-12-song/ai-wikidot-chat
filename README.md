@@ -135,8 +135,6 @@ npm run dev     # 开发模式（文件变更自动重启）
 - **AI**: DeepSeek-V4 API（OpenAI 兼容，支持 reasoning + function calling）
 - **前端**: 原生 JS + CSS（零构建工具，CDN 加载 marked）
 
-key: 6GcKM710fmtErqPyUZi04QQgH6jQyW5kLonzpD4W
-
 ## 许可
 
 ISC
