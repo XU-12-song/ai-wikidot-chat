@@ -43,7 +43,9 @@ async function showNoteCard(msg, startFrom, length, noteText) {
     });
 
     // close handlers
+    const abortController = new AbortController();
     const remove = () => {
+        abortController.abort();
         overlay.classList.add('out');
         card.classList.add('out');
         card.addEventListener('animationend', () => overlay.remove(), { once: true });
@@ -65,6 +67,7 @@ async function showNoteCard(msg, startFrom, length, noteText) {
                 length: length,
                 note: noteText,
             }),
+            signal: abortController.signal,
         });
         if (!res.ok) throw new Error((await res.json()).error);
 
@@ -74,8 +77,7 @@ async function showNoteCard(msg, startFrom, length, noteText) {
 
         while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
-            buf += decoder.decode(value, { stream: true });
+            buf += decoder.decode(value, { stream: !done });
             const lines = buf.split('\n');
             buf = lines.pop() || '';
             for (const line of lines) {
@@ -104,11 +106,14 @@ async function showNoteCard(msg, startFrom, length, noteText) {
                         body.innerHTML = md(aiContent);
                         if (!hasReasoning) rw.style.display = 'none';
                     }
-                } catch (e) { throw e; }
+                } catch (e2) { /* skip malformed lines */ }
             }
+            if (done) break;
         }
     } catch (e) {
-        body.innerHTML = `<p style="color:var(--muted)">生成失败: ${esc(e.message)}</p>`;
+        if (e.name !== 'AbortError') {
+            body.innerHTML = `<p style="color:var(--muted)">生成失败: ${esc(e.message)}</p>`;
+        }
     }
 }
 

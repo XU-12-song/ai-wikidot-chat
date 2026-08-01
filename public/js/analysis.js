@@ -61,10 +61,12 @@ function showAnalysisCard(msg, startFrom, length, noteText) {
             rb.classList.toggle('open');
         });
 
+        const abortController = new AbortController();
         let closed = false;
         const remove = () => {
             if (closed) return;
             closed = true;
+            abortController.abort();
             overlay.classList.add('out');
             card.classList.add('out');
             card.addEventListener('animationend', () => { overlay.remove(); resolve(); }, { once: true });
@@ -86,6 +88,7 @@ function showAnalysisCard(msg, startFrom, length, noteText) {
                         note: noteText,
                         form: 'analysis',
                     }),
+                    signal: abortController.signal,
                 });
                 if (!res.ok) throw new Error((await res.json()).error);
 
@@ -95,8 +98,7 @@ function showAnalysisCard(msg, startFrom, length, noteText) {
 
                 while (true) {
                     const { done, value } = await reader.read();
-                    if (done) break;
-                    buf += decoder.decode(value, { stream: true });
+                    buf += decoder.decode(value, { stream: !done });
                     const lines = buf.split('\n');
                     buf = lines.pop() || '';
                     for (const line of lines) {
@@ -124,11 +126,14 @@ function showAnalysisCard(msg, startFrom, length, noteText) {
                                 body.innerHTML = md(aiContent);
                                 if (!hasReasoning) rw.style.display = 'none';
                             }
-                        } catch (e) { throw e; }
+                        } catch (e2) { /* skip malformed */ }
                     }
+                    if (done) break;
                 }
             } catch (e) {
-                body.innerHTML = `<p style="color:var(--muted)">生成失败: ${esc(e.message)}</p>`;
+                if (e.name !== 'AbortError') {
+                    body.innerHTML = `<p style="color:var(--muted)">生成失败: ${esc(e.message)}</p>`;
+                }
             }
         })();
     });

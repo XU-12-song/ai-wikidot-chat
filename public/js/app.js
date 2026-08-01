@@ -57,6 +57,9 @@ function bindEvents() {
     $('#themeBox').addEventListener('click', turnTheme);
     $('#msgContainer').addEventListener('contextmenu', onContextMenu);
 
+    // event delegation for messages
+    $('#msgContainer').addEventListener('click', onMsgClick);
+
     // context menu registration
     ctxMenu.register('selection', [
         { label: '添加笔记', action: addNoteFromSelection },
@@ -238,6 +241,52 @@ async function forkBranch() {
     }
 }
 
+// ── Message click delegation (single handler, no per-render binding) ──
+
+function onMsgClick(e) {
+    const t = e.target;
+
+    const editBtn = t.closest('.edit-trigger');
+    if (editBtn) { e.stopPropagation(); startEdit(Number(editBtn.dataset.edit)); return; }
+
+    if (t.closest('.btn-cancel')) { cancelEdit(); return; }
+
+    const saveBtn = t.closest('.btn-save');
+    if (saveBtn) { saveEdit(Number(saveBtn.dataset.save), saveBtn.dataset.role); return; }
+
+    const navBtn = t.closest('.nav-arrow[data-branch]');
+    if (navBtn) { navToBranch(Number(navBtn.dataset.branch)); return; }
+
+    const toggle = t.closest('.reasoning-toggle');
+    if (toggle) {
+        toggle.classList.toggle('open');
+        const body = document.getElementById(toggle.dataset.reasoning);
+        if (body) body.classList.toggle('open');
+        return;
+    }
+
+    const noteEl = t.closest('.note-annotation');
+    if (noteEl) {
+        (async () => {
+            try {
+                const note = await api('/notes/' + Number(noteEl.dataset.noteId));
+                if (note) _showExistingNote(note);
+            } catch { }
+        })();
+        return;
+    }
+
+    const bar = t.closest('.analysis-bar');
+    if (bar) {
+        (async () => {
+            try {
+                const note = await api('/notes/' + Number(bar.dataset.analysisId));
+                if (note) _showExistingAnalysis(note);
+            } catch { }
+        })();
+    }
+}
+
 // ── 消息渲染 ──
 function renderMsgs() {
     const c = $('#msgContainer');
@@ -307,21 +356,9 @@ function renderMsgs() {
         </div>`;
     }).join('');
 
-    // 事件代理
-    c.querySelectorAll('.edit-trigger').forEach(btn => btn.addEventListener('click', () => startEdit(Number(btn.dataset.edit))));
-    c.querySelectorAll('.btn-cancel').forEach(btn => btn.addEventListener('click', cancelEdit));
-    c.querySelectorAll('.btn-save').forEach(btn => btn.addEventListener('click', () => saveEdit(Number(btn.dataset.save), btn.dataset.role)));
-    c.querySelectorAll('.nav-arrow[data-branch]').forEach(btn => btn.addEventListener('click', () => navToBranch(Number(btn.dataset.branch))));
-    c.querySelectorAll('.reasoning-toggle').forEach(btn => {
-        btn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            this.classList.toggle('open');
-            document.getElementById(this.dataset.reasoning).classList.toggle('open');
-        });
-    });
-
     renderAnalysisMarkers(S.msgs);
     renderNoteAnnotations(S.msgs);
+
     c.scrollTop = c.scrollHeight;
 }
 
@@ -381,7 +418,9 @@ async function saveEdit(msgId, role) {
     S.editing = null;
     S.streaming = true;
     $('#sendBtn').disabled = true;
-    setEditTriggersDisabled(true);   // 🔒 禁用编辑按钮
+    setEditTriggersDisabled(true);
+    S.streamAbort = null;
+    const controller = createStreamController();
 
     const idx = S.msgs.findIndex(m => m.id === msgId);
     if (idx >= 0) {
@@ -394,7 +433,8 @@ async function saveEdit(msgId, role) {
         const res = await fetch(`${BASE}/conversations/${S.cid}/messages/${msgId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content })
+            body: JSON.stringify({ content }),
+            signal: controller.signal,
         });
         if (!res.ok) throw new Error((await res.json()).error);
         await processStream(res);
@@ -405,13 +445,13 @@ async function saveEdit(msgId, role) {
         await loadBranches();
         updateMeta();
     } catch (e) {
-        alert('Error: ' + e.message);
+        if (e.name !== 'AbortError') alert('Error: ' + e.message);
         await reloadMsgs();
         renderMsgs();
     } finally {
         S.streaming = false;
         $('#sendBtn').disabled = false;
-        setEditTriggersDisabled(false);   // 🔓 恢复编辑按钮
+        setEditTriggersDisabled(false);
     }
 }
 
@@ -427,6 +467,8 @@ async function send() {
     $('#sendBtn').disabled = true;
     setEditTriggersDisabled(true);   // 🔒 禁用编辑
 
+    S.streamAbort = null;
+    const controller = createStreamController();
     S.msgs.push({ id: -Date.now(), role: 'user', content: msg });
     renderMsgs();
     appendStreamPlaceholder();
@@ -434,7 +476,8 @@ async function send() {
         const res = await fetch(`${BASE}/conversations/${S.cid}/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: msg })
+            body: JSON.stringify({ message: msg }),
+            signal: controller.signal,
         });
         if (!res.ok) throw new Error((await res.json()).error);
         await processStream(res);
@@ -445,13 +488,13 @@ async function send() {
         await loadBranches();
         updateMeta();
     } catch (e) {
-        alert('Error: ' + e.message);
+        if (e.name !== 'AbortError') alert('Error: ' + e.message);
         await reloadMsgs();
         renderMsgs();
     } finally {
         S.streaming = false;
         $('#sendBtn').disabled = false;
-        setEditTriggersDisabled(false);   // 🔓 恢复编辑
+        setEditTriggersDisabled(false);
     }
 }
 
@@ -471,64 +514,80 @@ function appendStreamPlaceholder() {
     $('#msgContainer').appendChild(p);
 }
 
+function createStreamController() {
+    const controller = new AbortController();
+    S.streamAbort = () => controller.abort();
+    return controller;
+}
+
 async function processStream(res) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = '', aiContent = '', aiReasoning = '', hasReasoning = false;
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop() || '';
-        for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-                const d = JSON.parse(line.slice(6));
-                if (d.error) throw new Error(d.error);
-                if (d.tool_call) {
-                    const tc = document.getElementById('ai-tool-calls');
-                    if (tc) {
-                        tc.style.display = 'flex';
-                        const chip = document.createElement('span');
-                        chip.className = 'tool-chip';
-                        chip.innerHTML = `<span class="tc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span class="tc-name">${esc(d.tool_call.name)}</span>`;
-                        tc.appendChild(chip);
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            buf += decoder.decode(value, { stream: !done });
+            const lines = buf.split('\n');
+            buf = lines.pop() || '';
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                try {
+                    const d = JSON.parse(line.slice(6));
+                    if (d.error) throw new Error(d.error);
+                    if (d.tool_call) {
+                        const tc = document.getElementById('ai-tool-calls');
+                        if (tc) {
+                            tc.style.display = 'flex';
+                            const chip = document.createElement('span');
+                            chip.className = 'tool-chip';
+                            chip.innerHTML = `<span class="tc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><span class="tc-name">${esc(d.tool_call.name)}</span>`;
+                            tc.appendChild(chip);
+                        }
                     }
-                }
-                if (d.reasoning_delta) {
-                    hasReasoning = true;
-                    aiReasoning += d.reasoning_delta;
-                    const rw = document.getElementById('ai-reasoning-wrap');
-                    const rb = document.getElementById('ai-reasoning');
-                    if (rw) rw.style.display = 'block';
-                    if (rb) rb.textContent = aiReasoning;
-                }
-                if (d.delta) {
-                    aiContent += d.delta;
-                    const body = document.getElementById('ai-body');
-                    if (body) body.innerHTML = md(aiContent) + '<span class="streaming-cursor"></span>';
-                }
-                if (d.done) {
-                    const body = document.getElementById('ai-body');
-                    if (body) body.innerHTML = md(aiContent);
-                    if (!hasReasoning) {
+                    if (d.reasoning_delta) {
+                        hasReasoning = true;
+                        aiReasoning += d.reasoning_delta;
                         const rw = document.getElementById('ai-reasoning-wrap');
-                        if (rw) rw.style.display = 'none';
+                        const rb = document.getElementById('ai-reasoning');
+                        if (rw) rw.style.display = 'block';
+                        if (rb) rb.textContent = aiReasoning;
                     }
-                }
-            } catch (e) { throw e; }
+                    if (d.delta) {
+                        aiContent += d.delta;
+                        const body = document.getElementById('ai-body');
+                        if (body) body.innerHTML = md(aiContent) + '<span class="streaming-cursor"></span>';
+                    }
+                    if (d.done) {
+                        const body = document.getElementById('ai-body');
+                        if (body) body.innerHTML = md(aiContent);
+                        if (!hasReasoning) {
+                            const rw = document.getElementById('ai-reasoning-wrap');
+                            if (rw) rw.style.display = 'none';
+                        }
+                    }
+                } catch (e2) { /* skip malformed lines during streaming */ }
+            }
+            if (done) break;
+            const container = $('#msgContainer');
+            // only auto-scroll if user is near the bottom; don't hijack scroll
+            if (container && container.scrollHeight - container.scrollTop - container.clientHeight < 80) {
+                container.scrollTop = container.scrollHeight;
+            }
         }
-        const container = $('#msgContainer');
-        container.scrollTop = container.scrollHeight;
+    } catch (e) {
+        if (e.name === 'AbortError') return; // intentionally cancelled
+        throw e;
     }
 }
 
 function cancelStream() {
-    if (S.streamAbort) S.streamAbort();
+    if (S.streamAbort) { S.streamAbort(); S.streamAbort = null; }
     S.streaming = false;
     $('#sendBtn').disabled = false;
     $('#regenBtn').disabled = false;
+    const streamEl = document.getElementById('ai-stream');
+    if (streamEl) streamEl.remove();
 }
 
 // ── 设置相关 ──
@@ -570,11 +629,16 @@ async function regenerate() {
     $('#regenBtn').disabled = true;
     setEditTriggersDisabled(true);   // 🔒 禁用编辑
 
+    S.streamAbort = null;
+    const controller = createStreamController();
     const oldAi = $('#msgContainer').querySelector('.msg-wrap.assistant:last-child');
     if (oldAi) oldAi.remove();
     appendStreamPlaceholder();
     try {
-        const res = await fetch(`${BASE}/conversations/${S.cid}/regenerate`, { method: 'POST' });
+        const res = await fetch(`${BASE}/conversations/${S.cid}/regenerate`, {
+            method: 'POST',
+            signal: controller.signal,
+        });
         if (!res.ok) throw new Error((await res.json()).error);
         await processStream(res);
         await reloadMsgs();
@@ -584,13 +648,13 @@ async function regenerate() {
         await loadBranches();
         updateMeta();
     } catch (e) {
-        alert('Error: ' + e.message);
+        if (e.name !== 'AbortError') alert('Error: ' + e.message);
         await reloadMsgs();
         renderMsgs();
     } finally {
         S.streaming = false;
         $('#regenBtn').disabled = false;
-        setEditTriggersDisabled(false);   // 🔓 恢复编辑
+        setEditTriggersDisabled(false);
     }
 }
 
